@@ -1,0 +1,20 @@
+{
+  "name": "apple-app-store-connect-codex-plugin",
+  "interface": {
+    "displayName": "Apple App Store Connect Codex Plugin"
+  },
+  "plugins": [
+    {
+      "name": "apple-app-store-connect",
+      "source": {
+        "source": "local",
+        "path": "./plugins/apple-app-store-connect"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

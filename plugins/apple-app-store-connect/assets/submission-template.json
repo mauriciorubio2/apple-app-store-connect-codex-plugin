@@ -1,0 +1,100 @@
+{
+  "app": {
+    "id": "1234567890",
+    "bundleId": "com.example.product",
+    "platform": "IOS",
+    "primaryLocale": "en-US"
+  },
+  "appInfo": {
+    "id": "app-info-id",
+    "primaryCategoryId": "app-category-id",
+    "secondaryCategoryId": "secondary-category-id"
+  },
+  "appInfoLocalizations": [
+    {
+      "id": "app-info-localization-id",
+      "locale": "en-US",
+      "name": "Example Product",
+      "subtitle": "Plan smarter days",
+      "privacyPolicyUrl": "https://example.com/privacy",
+      "privacyChoicesUrl": "https://example.com/privacy#choices"
+    }
+  ],
+  "version": {
+    "id": "app-store-version-id",
+    "versionString": "1.0.0",
+    "copyright": "2026 Example Company",
+    "releaseType": "AFTER_APPROVAL",
+    "earliestReleaseDate": null,
+    "buildId": "build-id-after-processing"
+  },
+  "versionLocalizations": [
+    {
+      "id": "version-localization-id",
+      "locale": "en-US",
+      "description": "Example Product helps you plan focused days with clear priorities, smart reminders, and calm progress tracking.\n\nKey features:\n- Plan tasks by energy and deadline\n- See your next best action instantly\n- Track routines without noisy streak pressure\n- Unlock Pro for recurring plans and advanced insights",
+      "keywords": "planner,focus,tasks,routines,calendar",
+      "promotionalText": "Start the week with cleaner plans and faster daily resets.",
+      "supportUrl": "https://example.com/support",
+      "marketingUrl": "https://example.com",
+      "whatsNew": "Initial App Store release."
+    }
+  ],
+  "reviewDetails": {
+    "id": "review-detail-id",
+    "contactFirstName": "Alex",
+    "contactLastName": "Example",
+    "contactPhone": "+1 555 0100",
+    "contactEmail": "review@example.com",
+    "demoAccountRequired": true,
+    "demoAccountName": "review@example.com",
+    "demoAccountPassword": "stored-in-your-password-manager",
+    "notes": "Use the demo account to view both free and Pro flows. Pro features are available in sandbox for review."
+  },
+  "ageRating": {
+    "id": "age-rating-declaration-id",
+    "attributes": {
+      "advertising": false,
+      "userGeneratedContent": false,
+      "unrestrictedWebAccess": false,
+      "messagingAndChat": false,
+      "healthOrWellnessTopics": false,
+      "profanityOrCrudeHumor": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE"
+    }
+  },
+  "subscriptions": [
+    {
+      "id": "subscription-id",
+      "productId": "com.example.product.pro.monthly",
+      "referenceName": "Pro Monthly",
+      "localizations": [
+        {
+          "id": "subscription-localization-id",
+          "locale": "en-US",
+          "name": "Pro Monthly",
+          "description": "Unlock recurring plans, advanced insights, and unlimited routines."
+        }
+      ],
+      "reviewScreenshot": "screenshots/review/pro-paywall.png"
+    }
+  ],
+  "screenshots": [
+    {
+      "localizationId": "version-localization-id",
+      "displayType": "APP_IPHONE_67",
+      "replaceExisting": false,
+      "files": [
+        "generated-screenshots/en-US/APP_IPHONE_67/01-plan.png",
+        "generated-screenshots/en-US/APP_IPHONE_67/02-focus.png",
+        "generated-screenshots/en-US/APP_IPHONE_67/03-pro.png"
+      ]
+    }
+  ],
+  "reviewSubmission": {
+    "createDraft": true,
+    "submitForReview": false
+  }
+}

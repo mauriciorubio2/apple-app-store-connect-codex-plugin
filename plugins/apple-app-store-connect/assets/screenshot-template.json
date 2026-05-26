@@ -1,0 +1,30 @@
+{
+  "outputDir": "generated-screenshots/en-US/APP_IPHONE_67",
+  "displayType": "APP_IPHONE_67",
+  "background": "#F5F7FA",
+  "accent": "#0A84FF",
+  "paidBadge": "Pro",
+  "screens": [
+    {
+      "source": "screenshots/raw/01-home.png",
+      "output": "01-plan.png",
+      "headline": "Plan your day in minutes",
+      "subheadline": "Smart priorities keep the next step obvious.",
+      "paid": false
+    },
+    {
+      "source": "screenshots/raw/02-focus.png",
+      "output": "02-focus.png",
+      "headline": "Stay focused without noise",
+      "subheadline": "Only the reminders that matter reach you.",
+      "paid": false
+    },
+    {
+      "source": "screenshots/raw/03-pro.png",
+      "output": "03-pro.png",
+      "headline": "Unlock advanced planning",
+      "subheadline": "Recurring plans and insights are included with Pro.",
+      "paid": true
+    }
+  ]
+}

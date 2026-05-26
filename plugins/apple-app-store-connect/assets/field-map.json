@@ -1,0 +1,291 @@
+{
+  "sourceAudit": {
+    "openApiVersion": "4.3.1",
+    "auditedOn": "2026-05-26",
+    "primarySources": [
+      "https://developer.apple.com/documentation/appstoreconnectapi",
+      "https://developer.apple.com/help/app-store-connect/",
+      "https://developer.apple.com/app-store/product-page/",
+      "https://developer.apple.com/app-store/custom-product-pages/",
+      "https://developer.apple.com/documentation/apple_search_ads/custom_product_pages"
+    ]
+  },
+  "credentialEnvironment": {
+    "ASC_KEY_ID": "App Store Connect API key ID.",
+    "ASC_ISSUER_ID": "Issuer ID for team keys. Omit when ASC_KEY_TYPE=individual.",
+    "ASC_KEY_PATH": "Path to the downloaded AuthKey_<KEY_ID>.p8 private key.",
+    "ASC_KEY_TYPE": "team or individual. Defaults to team.",
+    "ASC_API_BASE": "Optional API base URL. Defaults to https://api.appstoreconnect.apple.com"
+  },
+  "submissionFieldGroups": [
+    {
+      "group": "App record",
+      "resource": "apps",
+      "endpointCoverage": [
+        "GET /v1/apps",
+        "GET /v1/apps/{id}",
+        "PATCH /v1/apps/{id}"
+      ],
+      "automatableFields": [
+        "bundleId",
+        "primaryLocale",
+        "sku",
+        "accessibilityUrl",
+        "feedbackAssistantUrl",
+        "contentRightsDeclaration",
+        "subscriptionStatusUrl",
+        "subscriptionStatusUrlVersion",
+        "subscriptionStatusUrlForSandbox",
+        "subscriptionStatusUrlVersionForSandbox"
+      ],
+      "notes": "The public API can manage existing app records. Create brand-new app records in App Store Connect when the API does not expose the exact setup needed for the account."
+    },
+    {
+      "group": "Shared app information",
+      "resource": "appInfos and appInfoLocalizations",
+      "endpointCoverage": [
+        "GET /v1/apps/{id}/appInfos",
+        "PATCH /v1/appInfos/{id}",
+        "POST /v1/appInfoLocalizations",
+        "PATCH /v1/appInfoLocalizations/{id}"
+      ],
+      "automatableFields": [
+        "name",
+        "subtitle",
+        "privacyPolicyUrl",
+        "privacyChoicesUrl",
+        "privacyPolicyText",
+        "primaryCategory",
+        "primarySubcategoryOne",
+        "primarySubcategoryTwo",
+        "secondaryCategory",
+        "secondarySubcategoryOne",
+        "secondarySubcategoryTwo"
+      ],
+      "limits": {
+        "name": "2-30 characters",
+        "subtitle": "30 characters maximum"
+      }
+    },
+    {
+      "group": "Age rating",
+      "resource": "ageRatingDeclarations",
+      "endpointCoverage": [
+        "GET /v1/appInfos/{id}/ageRatingDeclaration",
+        "PATCH /v1/ageRatingDeclarations/{id}"
+      ],
+      "automatableFields": [
+        "advertising",
+        "alcoholTobaccoOrDrugUseOrReferences",
+        "contests",
+        "gambling",
+        "gamblingSimulated",
+        "gunsOrOtherWeapons",
+        "healthOrWellnessTopics",
+        "kidsAgeBand",
+        "lootBox",
+        "medicalOrTreatmentInformation",
+        "messagingAndChat",
+        "parentalControls",
+        "profanityOrCrudeHumor",
+        "ageAssurance",
+        "sexualContentGraphicAndNudity",
+        "sexualContentOrNudity",
+        "horrorOrFearThemes",
+        "matureOrSuggestiveThemes",
+        "unrestrictedWebAccess",
+        "userGeneratedContent",
+        "violenceCartoonOrFantasy",
+        "violenceRealistic"
+      ],
+      "notes": "Values must honestly reflect app content. Do not lower a rating for marketing reasons."
+    },
+    {
+      "group": "Platform version",
+      "resource": "appStoreVersions and appStoreVersionLocalizations",
+      "endpointCoverage": [
+        "POST /v1/appStoreVersions",
+        "PATCH /v1/appStoreVersions/{id}",
+        "POST /v1/appStoreVersionLocalizations",
+        "PATCH /v1/appStoreVersionLocalizations/{id}"
+      ],
+      "automatableFields": [
+        "platform",
+        "versionString",
+        "copyright",
+        "reviewType",
+        "releaseType",
+        "earliestReleaseDate",
+        "downloadable",
+        "build relationship",
+        "description",
+        "keywords",
+        "marketingUrl",
+        "promotionalText",
+        "supportUrl",
+        "whatsNew"
+      ],
+      "limits": {
+        "description": "4000 characters maximum",
+        "keywords": "100 characters maximum, comma-separated, no spaces after commas",
+        "promotionalText": "170 characters maximum",
+        "whatsNew": "4000 characters maximum"
+      }
+    },
+    {
+      "group": "Screenshots and app previews",
+      "resource": "appScreenshotSets, appScreenshots, appPreviewSets, appPreviews",
+      "endpointCoverage": [
+        "POST /v1/appScreenshotSets",
+        "POST /v1/appScreenshots",
+        "PATCH /v1/appScreenshots/{id}",
+        "DELETE /v1/appScreenshotSets/{id}",
+        "PATCH /v1/appScreenshotSets/{id}/relationships/appScreenshots"
+      ],
+      "automatableFields": [
+        "localized screenshot sets",
+        "screenshot file reservations",
+        "multipart upload operations",
+        "checksum commit",
+        "screenshot ordering"
+      ],
+      "limits": {
+        "screenshotsPerDisplayTarget": "1-10 .png, .jpg, or .jpeg files",
+        "appPreviewsPerDisplayTarget": "0-3 supported video files"
+      },
+      "displayTypes": [
+        "APP_IPHONE_67",
+        "APP_IPHONE_61",
+        "APP_IPHONE_65",
+        "APP_IPAD_PRO_3GEN_129",
+        "APP_IPAD_PRO_3GEN_11",
+        "APP_DESKTOP",
+        "APP_APPLE_TV",
+        "APP_APPLE_VISION_PRO"
+      ],
+      "notes": "Apple may scale highest-resolution screenshots down for smaller sizes when the UI is the same across device sizes."
+    },
+    {
+      "group": "Build upload and build selection",
+      "resource": "buildUploads, buildUploadFiles, builds, appStoreVersions",
+      "endpointCoverage": [
+        "POST /v1/buildUploads",
+        "POST /v1/buildUploadFiles",
+        "PATCH /v1/buildUploadFiles/{id}",
+        "GET /v1/buildUploads/{id}",
+        "PATCH /v1/appStoreVersions/{id}"
+      ],
+      "automatableFields": [
+        "cfBundleShortVersionString",
+        "cfBundleVersion",
+        "platform",
+        "ipa/pkg upload reservations",
+        "multipart upload operations",
+        "build relationship"
+      ],
+      "fallbackTooling": [
+        "Transporter command-line upload",
+        "xcrun altool upload",
+        "Xcode Organizer upload"
+      ]
+    },
+    {
+      "group": "Review details and submission",
+      "resource": "appStoreReviewDetails, reviewSubmissions, reviewSubmissionItems",
+      "endpointCoverage": [
+        "POST /v1/appStoreReviewDetails",
+        "PATCH /v1/appStoreReviewDetails/{id}",
+        "POST /v1/reviewSubmissions",
+        "POST /v1/reviewSubmissionItems",
+        "PATCH /v1/reviewSubmissions/{id}"
+      ],
+      "automatableFields": [
+        "contactFirstName",
+        "contactLastName",
+        "contactPhone",
+        "contactEmail",
+        "demoAccountName",
+        "demoAccountPassword",
+        "demoAccountRequired",
+        "notes",
+        "draft review submission",
+        "submission items",
+        "submitted flag"
+      ],
+      "safety": "The plugin requires explicit confirmation before submitting to review."
+    },
+    {
+      "group": "In-app purchases and subscriptions",
+      "resource": "inAppPurchases, subscriptions, localizations, prices, review screenshots, submissions",
+      "endpointCoverage": [
+        "POST /v2/inAppPurchases",
+        "PATCH /v2/inAppPurchases/{id}",
+        "POST /v1/subscriptions",
+        "PATCH /v1/subscriptions/{id}",
+        "POST /v1/inAppPurchaseLocalizations",
+        "POST /v1/subscriptionLocalizations",
+        "POST /v1/subscriptionAppStoreReviewScreenshots",
+        "POST /v1/subscriptionSubmissions",
+        "POST /v1/inAppPurchaseSubmissions"
+      ],
+      "automatableFields": [
+        "referenceName",
+        "productId",
+        "subscriptionGroup",
+        "localized display name",
+        "localized description",
+        "prices",
+        "availability",
+        "review screenshots",
+        "submission"
+      ],
+      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable."
+    },
+    {
+      "group": "Custom product pages and product page optimization",
+      "resource": "appCustomProductPages, localizations, appStoreVersionExperiments",
+      "endpointCoverage": [
+        "GET /v1/apps/{id}/appCustomProductPages",
+        "POST /v1/appCustomProductPages",
+        "POST /v1/appCustomProductPageLocalizations",
+        "POST /v1/appStoreVersionExperiments",
+        "POST /v1/appStoreVersionExperimentTreatments"
+      ],
+      "automatableFields": [
+        "custom product page metadata",
+        "custom screenshots",
+        "custom promotional text",
+        "custom app previews",
+        "product page test treatments"
+      ],
+      "asaUse": "Apple Ads can use approved custom product pages to create ad variations aligned with campaign and keyword intent."
+    }
+  ],
+  "manualOrLimitedFields": [
+    {
+      "field": "Paid Apps Agreement, tax, and banking",
+      "reason": "Account/legal setup requires the App Store Connect web experience and authorized account roles."
+    },
+    {
+      "field": "App Privacy nutrition labels",
+      "reason": "The audited public OpenAPI spec does not expose privacy questionnaire endpoints. The plugin can prepare a checklist but cannot safely fill those labels by API."
+    },
+    {
+      "field": "Some export compliance documentation",
+      "reason": "Builds can surface encryption and export compliance requirements; some account-specific documentation or certificates may require manual upload or review."
+    },
+    {
+      "field": "Legal, medical, financial, kids, gambling, and regulated claims",
+      "reason": "Codex can draft and validate structure, but the developer must verify factual and legal accuracy before submission."
+    }
+  ],
+  "copyBestPractices": {
+    "name": "Use the clearest searchable brand/category phrase without stuffing.",
+    "subtitle": "State the concrete user outcome in 30 characters or fewer.",
+    "description": "Lead with the strongest benefit in the first sentence, then use concise feature bullets. Avoid prices and keyword stuffing.",
+    "keywords": "Use relevant comma-separated terms, avoid duplicates, category names, competitor names, trademarks, offensive terms, and spaces after commas.",
+    "promotionalText": "Use for current news or offers, not search ranking keywords.",
+    "screenshots": "Make the first one to three images explain the app's core value. Use one benefit per screenshot. Mark subscription or paid-only features clearly.",
+    "customProductPages": "Match screenshots, promo text, and keywords to a specific ad group, audience, feature, or seasonal intent."
+  }
+}

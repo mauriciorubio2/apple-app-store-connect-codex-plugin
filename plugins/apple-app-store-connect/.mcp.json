@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "apple-app-store-connect": {
+      "command": "python3",
+      "args": [
+        "./scripts/asc_mcp_server.py"
+      ],
+      "cwd": "."
+    }
+  }
+}

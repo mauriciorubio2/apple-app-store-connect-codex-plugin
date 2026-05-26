@@ -1,0 +1,24 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Validate JSON
+        run: |
+          python3 -m json.tool .agents/plugins/marketplace.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/.codex-plugin/plugin.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/.mcp.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/assets/field-map.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/assets/submission-template.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/assets/screenshot-template.json >/dev/null

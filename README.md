@@ -1,0 +1,133 @@
+# Apple App Store Connect Codex Plugin
+
+An open source Codex plugin for preparing and shipping Apple App Store Connect releases. It helps Codex draft App Store metadata, validate submission fields, render conversion-focused screenshots, upload builds, upload screenshots, fill version/review details, and prepare review submissions using Apple's public App Store Connect APIs and delivery tooling.
+
+The plugin is intentionally conservative: every production mutation starts as a dry run, and review submission/build upload actions require explicit confirmation.
+
+## Install
+
+```bash
+codex plugin marketplace add https://github.com/mauriciorubio2/apple-app-store-connect-codex-plugin.git
+codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
+```
+
+## What It Can Do
+
+- Draft ASO and Apple Ads-aware app name, subtitle, description, keywords, promotional text, and what's-new copy.
+- Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
+- Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
+- Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
+- Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback.
+- Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
+- Prepare subscription/IAP localization and review screenshot checklists.
+- Create dry-run plans so a human can approve exactly what will change.
+
+## Apple Documentation Used
+
+The workflow is based on Apple's current App Store Connect API, App Store Connect Help, and product page guidance:
+
+- [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
+- [Generating tokens for API requests](https://developer.apple.com/documentation/appstoreconnectapi/generating_tokens_for_api_requests)
+- [Uploading assets to App Store Connect](https://developer.apple.com/documentation/appstoreconnectapi/uploading_assets_to_app_store_connect)
+- [Build uploads](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-builduploads)
+- [Upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
+- [Platform version information](https://developer.apple.com/help/app-store-connect/reference/platform-version-information/)
+- [Screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/)
+- [Creating your product page](https://developer.apple.com/app-store/product-page/)
+- [Custom product pages](https://developer.apple.com/app-store/custom-product-pages/)
+- [Apple Ads custom product pages API](https://developer.apple.com/documentation/apple_search_ads/custom_product_pages)
+
+## Credentials
+
+Create an App Store Connect API key in App Store Connect, download the `.p8` private key once, and keep it outside the repository.
+
+```bash
+export ASC_KEY_ID="ABC123DEFG"
+export ASC_ISSUER_ID="00000000-0000-0000-0000-000000000000"
+export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_ABC123DEFG.p8"
+export ASC_KEY_TYPE="team"
+```
+
+For individual keys:
+
+```bash
+export ASC_KEY_ID="ABC123DEFG"
+export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_ABC123DEFG.p8"
+export ASC_KEY_TYPE="individual"
+```
+
+## CLI Examples
+
+Run local checks:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor
+```
+
+Start a submission config:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py template > appstore-submission.json
+```
+
+Validate and plan:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py validate --config appstore-submission.json
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan --config appstore-submission.json
+```
+
+Apply metadata after approval:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py apply-metadata --config appstore-submission.json --yes
+```
+
+Upload a build with the API:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
+  --app-id 1234567890 \
+  --file build/App.ipa \
+  --version-string 1.0.0 \
+  --build-number 42 \
+  --wait 1800 \
+  --yes
+```
+
+Generate screenshots:
+
+```bash
+python3 -m pip install pillow
+python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
+  --config plugins/apple-app-store-connect/assets/screenshot-template.json
+```
+
+## Privacy And Security
+
+This plugin runs locally. It does not send credentials to any third-party service. API requests go to Apple's App Store Connect API or Apple's upload URLs returned by upload reservations.
+
+Do not commit `.p8` keys, JWTs, app binaries, unreleased screenshots, demo account passwords, or private release metadata. The `.gitignore` blocks the most common sensitive file types, but developers remain responsible for reviewing commits.
+
+## Known Boundaries
+
+Some App Store Connect areas still require manual work or account-specific review:
+
+- Paid Apps Agreement, tax, and banking setup.
+- App Privacy nutrition labels.
+- Some export compliance documents and regulated-app disclosures.
+- Final legal, medical, financial, kids, gambling, or safety-sensitive claims.
+
+The plugin can prepare checklists and draft copy for those areas, but it will not pretend to automate unsupported public API fields.
+
+## Development
+
+```bash
+python3 -m unittest discover -s tests -v
+# In Codex development sessions, also run the bundled plugin validator:
+python3 /path/to/plugin-creator/scripts/validate_plugin.py plugins/apple-app-store-connect
+```
+
+## License
+
+MIT
