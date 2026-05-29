@@ -28,6 +28,10 @@
     "earliestReleaseDate": null,
     "buildId": "build-id-after-processing"
   },
+  "build": {
+    "buildNumber": "42",
+    "versioningSource": "xcode-project"
+  },
   "versionLocalizations": [
     {
       "id": "version-localization-id",

@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -41,6 +43,18 @@ TEXT_LIMITS = {
 
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
+VERSION_RE = re.compile(r"^\d+(?:\.\d+){0,2}$")
+FULL_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+SKIPPED_PROJECT_DIRS = {
+    ".git",
+    ".build",
+    "build",
+    "DerivedData",
+    "Pods",
+    "Carthage",
+    "node_modules",
+    "vendor",
+}
 
 
 def load_json(path: str | Path) -> Any:
@@ -48,10 +62,61 @@ def load_json(path: str | Path) -> Any:
         return json.load(file)
 
 
+def write_json(path: str | Path, value: Any) -> None:
+    with Path(path).expanduser().open("w", encoding="utf-8") as file:
+        json.dump(value, file, indent=2)
+        file.write("\n")
+
+
 def as_list(value: Any) -> list[Any]:
     if value is None:
         return []
     return value if isinstance(value, list) else [value]
+
+
+def parse_version(value: str | int | None, default: tuple[int, int, int] = (0, 0, 0)) -> tuple[int, int, int]:
+    if value is None:
+        return default
+    parts = [int(part) for part in str(value).strip().split(".") if part != ""]
+    if not parts or len(parts) > 3:
+        return default
+    return tuple((parts + [0, 0, 0])[:3])
+
+
+def format_version(parts: tuple[int, int, int]) -> str:
+    return ".".join(str(part) for part in parts)
+
+
+def increment_version(value: str | None, level: str) -> str:
+    major, minor, patch = parse_version(value, default=(1, 0, 0))
+    if level == "same":
+        return format_version((major, minor, patch))
+    if level == "major":
+        return format_version((major + 1, 0, 0))
+    if level == "minor":
+        return format_version((major, minor + 1, 0))
+    return format_version((major, minor, patch + 1))
+
+
+def increment_build(value: str | int | None, amount: int = 1) -> str:
+    amount = max(1, amount)
+    parts = [int(part) for part in str(value or "0").strip().split(".") if part.isdigit()]
+    if not parts:
+        parts = [0]
+    parts[-1] += amount
+    return ".".join(str(part) for part in parts[:3])
+
+
+def ensure_version_format(value: str, field: str) -> None:
+    if not VERSION_RE.match(value):
+        raise AppStoreConnectError(f"{field} must contain one to three period-separated integers.")
+
+
+def ensure_app_store_version_format(value: str) -> None:
+    if not FULL_VERSION_RE.match(value):
+        raise AppStoreConnectError(
+            "App Store version must use three period-separated integers, for example 1.2.3."
+        )
 
 
 def add_length_issue(
@@ -111,6 +176,278 @@ def validate_keywords(value: str | None, issues: list[dict[str, str]]) -> None:
         )
 
 
+def git_output(project_dir: Path, args: list[str]) -> str | None:
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(project_dir),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip()
+
+
+def git_iteration_count(project_dir: Path) -> tuple[int | None, str | None]:
+    inside = git_output(project_dir, ["rev-parse", "--is-inside-work-tree"])
+    if inside != "true":
+        return None, None
+    tag = git_output(project_dir, ["describe", "--tags", "--abbrev=0"])
+    if tag:
+        count_text = git_output(project_dir, ["rev-list", "--count", f"{tag}..HEAD"])
+        if count_text and count_text.isdigit():
+            count = int(count_text)
+            return max(1, count), f"commits since tag {tag}"
+    count_text = git_output(project_dir, ["rev-list", "--count", "HEAD"])
+    if count_text and count_text.isdigit():
+        return max(1, int(count_text)), "total git commits"
+    return None, None
+
+
+def git_recent_messages(project_dir: Path) -> list[str]:
+    output = git_output(project_dir, ["log", "--format=%s", "-n", "50"])
+    if not output:
+        return []
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def infer_release_level(project_dir: Path, requested: str, current_version: str | None) -> tuple[str, str]:
+    if requested != "auto":
+        return requested, f"release level explicitly set to {requested}"
+    if not current_version:
+        return "same", "no current version found; defaulting initial version to 1.0.0"
+    messages = git_recent_messages(project_dir)
+    joined = "\n".join(messages).lower()
+    if "breaking change" in joined or re.search(r"^[a-z]+(?:\(.+\))?!:", joined, flags=re.MULTILINE):
+        return "major", "recent git history contains a breaking-change marker"
+    if re.search(r"^feat(?:\(.+\))?:", joined, flags=re.MULTILINE):
+        return "minor", "recent git history contains feature commits"
+    return "patch", "defaulting to a patch release for a release build"
+
+
+def read_plist_values(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open("rb") as file:
+            value = plistlib.load(file)
+        if isinstance(value, dict):
+            return value
+    except Exception:
+        return None
+    return None
+
+
+def is_skipped_project_path(path: Path) -> bool:
+    return any(part in SKIPPED_PROJECT_DIRS for part in path.parts)
+
+
+def discover_version_sources(project_dir: Path) -> list[dict[str, Any]]:
+    project_dir = project_dir.expanduser().resolve()
+    sources: list[dict[str, Any]] = []
+    for pbxproj in sorted(project_dir.rglob("project.pbxproj")):
+        if is_skipped_project_path(pbxproj):
+            continue
+        text = pbxproj.read_text(encoding="utf-8", errors="replace")
+        marketing = re.findall(r"\bMARKETING_VERSION\s*=\s*([^;]+);", text)
+        current = re.findall(r"\bCURRENT_PROJECT_VERSION\s*=\s*([^;]+);", text)
+        if marketing or current:
+            sources.append(
+                {
+                    "type": "xcodeBuildSettings",
+                    "path": str(pbxproj),
+                    "version": marketing[-1].strip().strip('"') if marketing else None,
+                    "build": current[-1].strip().strip('"') if current else None,
+                    "versionKey": "MARKETING_VERSION" if marketing else None,
+                    "buildKey": "CURRENT_PROJECT_VERSION" if current else None,
+                }
+            )
+    for plist in sorted(project_dir.rglob("Info.plist")):
+        if is_skipped_project_path(plist):
+            continue
+        value = read_plist_values(plist)
+        if not value:
+            continue
+        version = value.get("CFBundleShortVersionString")
+        build = value.get("CFBundleVersion")
+        if version or build:
+            sources.append(
+                {
+                    "type": "infoPlist",
+                    "path": str(plist),
+                    "version": version,
+                    "build": build,
+                    "versionKey": "CFBundleShortVersionString" if version else None,
+                    "buildKey": "CFBundleVersion" if build else None,
+                }
+            )
+    return sources
+
+
+def first_literal(values: list[Any]) -> str | None:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip().strip('"')
+        if text and "$(" not in text:
+            return text
+    return None
+
+
+def resolve_current_version(sources: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    version = first_literal([source.get("version") for source in sources])
+    build = first_literal([source.get("build") for source in sources])
+    return version, build
+
+
+def plan_versioning(
+    project_dir: str | Path,
+    release_level: str = "auto",
+    iteration_count: int | None = None,
+    current_version: str | None = None,
+    current_build: str | None = None,
+    use_git: bool = True,
+) -> dict[str, Any]:
+    project_path = Path(project_dir).expanduser().resolve()
+    sources = discover_version_sources(project_path)
+    detected_version, detected_build = resolve_current_version(sources)
+    base_version = current_version or detected_version
+    base_build = current_build or detected_build
+
+    git_count = None
+    git_basis = None
+    if use_git and iteration_count is None:
+        git_count, git_basis = git_iteration_count(project_path)
+    increment = iteration_count or git_count or 1
+    level, level_reason = infer_release_level(project_path, release_level, base_version)
+    if not base_version:
+        next_version = "1.0.0"
+    else:
+        next_version = increment_version(base_version, level)
+    next_build = increment_build(base_build, increment)
+    ensure_app_store_version_format(next_version)
+    ensure_version_format(next_build, "Build number")
+    return {
+        "projectDir": str(project_path),
+        "detected": {
+            "versionString": detected_version,
+            "buildNumber": detected_build,
+            "sources": sources,
+        },
+        "inputs": {
+            "currentVersion": current_version,
+            "currentBuild": current_build,
+            "releaseLevel": release_level,
+            "iterationCount": iteration_count,
+            "useGit": use_git,
+        },
+        "recommendation": {
+            "versionString": next_version,
+            "buildNumber": next_build,
+            "releaseLevel": level,
+            "buildIncrement": increment,
+            "rationale": [
+                level_reason,
+                f"build number increments by {increment}"
+                + (f" from {git_basis}" if git_basis and iteration_count is None else ""),
+            ],
+        },
+        "appleRules": [
+            "CFBundleShortVersionString is the user-visible App Store version and should match App Store Connect.",
+            "CFBundleShortVersionString must be three period-separated integers.",
+            "CFBundleVersion identifies the build iteration and must be one to three period-separated integers.",
+            "Every uploaded build for an app version needs a unique build string.",
+        ],
+    }
+
+
+def replace_build_setting(text: str, key: str, value: str) -> tuple[str, int]:
+    pattern = re.compile(rf"(\b{re.escape(key)}\s*=\s*)([^;]+)(;)")
+    updated, count = pattern.subn(rf"\g<1>{value}\g<3>", text)
+    return updated, count
+
+
+def update_pbxproj_versions(project_dir: Path, version: str, build: str) -> list[dict[str, Any]]:
+    changed: list[dict[str, Any]] = []
+    for pbxproj in sorted(project_dir.rglob("project.pbxproj")):
+        if is_skipped_project_path(pbxproj):
+            continue
+        text = pbxproj.read_text(encoding="utf-8", errors="replace")
+        updated, version_count = replace_build_setting(text, "MARKETING_VERSION", version)
+        updated, build_count = replace_build_setting(updated, "CURRENT_PROJECT_VERSION", build)
+        if updated != text:
+            pbxproj.write_text(updated, encoding="utf-8")
+            changed.append(
+                {
+                    "path": str(pbxproj),
+                    "updated": {
+                        "MARKETING_VERSION": version_count,
+                        "CURRENT_PROJECT_VERSION": build_count,
+                    },
+                }
+            )
+    return changed
+
+
+def update_info_plist_versions(
+    project_dir: Path, version: str, build: str, force_variable_plists: bool = False
+) -> list[dict[str, Any]]:
+    changed: list[dict[str, Any]] = []
+    for plist in sorted(project_dir.rglob("Info.plist")):
+        if is_skipped_project_path(plist):
+            continue
+        value = read_plist_values(plist)
+        if not value:
+            continue
+        touched: dict[str, str] = {}
+        existing_version = str(value.get("CFBundleShortVersionString", ""))
+        existing_build = str(value.get("CFBundleVersion", ""))
+        if existing_version and (force_variable_plists or "$(" not in existing_version):
+            value["CFBundleShortVersionString"] = version
+            touched["CFBundleShortVersionString"] = version
+        if existing_build and (force_variable_plists or "$(" not in existing_build):
+            value["CFBundleVersion"] = build
+            touched["CFBundleVersion"] = build
+        if touched:
+            with plist.open("wb") as file:
+                plistlib.dump(value, file, fmt=plistlib.FMT_XML)
+            changed.append({"path": str(plist), "updated": touched})
+    return changed
+
+
+def apply_versioning(args: argparse.Namespace) -> dict[str, Any]:
+    plan = plan_versioning(
+        args.project_dir,
+        release_level=args.release_level,
+        iteration_count=args.iteration_count,
+        current_version=args.current_version,
+        current_build=args.current_build,
+        use_git=not args.no_git,
+    )
+    version = plan["recommendation"]["versionString"]
+    build = plan["recommendation"]["buildNumber"]
+    if not args.yes:
+        return {"dryRun": True, **plan}
+
+    project_dir = Path(args.project_dir).expanduser().resolve()
+    results: dict[str, Any] = {
+        "dryRun": False,
+        "versionString": version,
+        "buildNumber": build,
+        "updatedProjectFiles": update_pbxproj_versions(project_dir, version, build),
+        "updatedInfoPlists": update_info_plist_versions(project_dir, version, build, args.force_plist),
+    }
+    if args.config:
+        config = load_json(args.config)
+        config.setdefault("version", {})
+        config["version"]["versionString"] = version
+        config.setdefault("build", {})
+        config["build"]["buildNumber"] = build
+        write_json(args.config, config)
+        results["updatedConfig"] = str(Path(args.config).expanduser())
+    return results
+
+
 def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
 
@@ -122,6 +459,25 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                 "severity": "warning",
                 "field": "app.platform",
                 "message": "Platform is unusual for App Store release metadata.",
+            }
+        )
+
+    version = config.get("version", {})
+    if version.get("versionString") and not FULL_VERSION_RE.match(str(version["versionString"])):
+        issues.append(
+            {
+                "severity": "error",
+                "field": "version.versionString",
+                "message": "App Store version must use three period-separated integers, for example 1.2.3.",
+            }
+        )
+    build = config.get("build", {})
+    if build.get("buildNumber") and not VERSION_RE.match(str(build["buildNumber"])):
+        issues.append(
+            {
+                "severity": "error",
+                "field": "build.buildNumber",
+                "message": "Build number must use one to three period-separated integers.",
             }
         )
 
@@ -655,15 +1011,36 @@ def upload_screenshots(
 
 def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | None) -> dict[str, Any]:
     file_path = Path(args.file).expanduser()
+    version_plan = None
+    version_string = args.version_string
+    build_number = args.build_number
+    if args.auto_version or not (version_string and build_number):
+        version_plan = plan_versioning(
+            args.project_dir,
+            release_level=args.release_level,
+            iteration_count=args.iteration_count,
+            current_version=args.current_version,
+            current_build=args.current_build,
+            use_git=not args.no_git,
+        )
+        version_string = version_string or version_plan["recommendation"]["versionString"]
+        build_number = build_number or version_plan["recommendation"]["buildNumber"]
+    if not version_string or not build_number:
+        raise AppStoreConnectError(
+            "Provide --version-string and --build-number, or pass --auto-version to infer them."
+        )
+    ensure_app_store_version_format(version_string)
+    ensure_version_format(build_number, "Build number")
     if not args.yes:
         return {
             "dryRun": True,
             "appId": args.app_id,
             "file": str(file_path),
             "fileExists": file_path.exists(),
-            "versionString": args.version_string,
-            "buildNumber": args.build_number,
+            "versionString": version_string,
+            "buildNumber": build_number,
             "platform": args.platform,
+            "versionPlan": version_plan,
         }
     if not file_path.exists():
         raise AppStoreConnectError(f"Build file not found: {file_path}")
@@ -678,8 +1055,8 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
         json_api_body(
             "buildUploads",
             {
-                "cfBundleShortVersionString": args.version_string,
-                "cfBundleVersion": args.build_number,
+                "cfBundleShortVersionString": version_string,
+                "cfBundleVersion": build_number,
                 "platform": args.platform,
             },
             {"app": relationship("apps", args.app_id)},
@@ -796,6 +1173,20 @@ def add_common_config_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", required=True, help="Path to an App Store submission JSON config.")
 
 
+def add_versioning_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--project-dir", default=".", help="Apple project directory to inspect.")
+    parser.add_argument(
+        "--release-level",
+        choices=["auto", "same", "patch", "minor", "major"],
+        default="auto",
+        help="How to bump CFBundleShortVersionString. auto uses git history.",
+    )
+    parser.add_argument("--iteration-count", type=int, help="Codex/build iterations to fold into the build number.")
+    parser.add_argument("--current-version", help="Override detected CFBundleShortVersionString.")
+    parser.add_argument("--current-build", help="Override detected CFBundleVersion.")
+    parser.add_argument("--no-git", action="store_true", help="Do not use git commit history for iteration count.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -803,6 +1194,22 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("doctor")
     sub.add_parser("field-map")
     sub.add_parser("template")
+
+    version_plan = sub.add_parser("plan-version", help="Infer the next App Store version and build number.")
+    add_versioning_arguments(version_plan)
+
+    version_apply = sub.add_parser(
+        "apply-version",
+        help="Update Xcode project version/build settings and optionally a submission config.",
+    )
+    add_versioning_arguments(version_apply)
+    version_apply.add_argument("--config", help="Submission JSON to update with the recommended version/build.")
+    version_apply.add_argument(
+        "--force-plist",
+        action="store_true",
+        help="Also overwrite Info.plist values that reference build setting variables.",
+    )
+    version_apply.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
 
     validate = sub.add_parser("validate", help="Validate an App Store submission JSON config.")
     add_common_config_argument(validate)
@@ -834,9 +1241,11 @@ def build_parser() -> argparse.ArgumentParser:
     upload = sub.add_parser("upload-build-api", help="Upload an .ipa or .pkg with Build Uploads API.")
     upload.add_argument("--app-id", required=True)
     upload.add_argument("--file", required=True)
-    upload.add_argument("--version-string", required=True)
-    upload.add_argument("--build-number", required=True)
+    upload.add_argument("--version-string")
+    upload.add_argument("--build-number")
     upload.add_argument("--platform", default="IOS")
+    upload.add_argument("--auto-version", action="store_true", help="Infer missing version/build values from the project.")
+    add_versioning_arguments(upload)
     upload.add_argument("--wait", type=int, default=0, help="Seconds to poll for processing state.")
     upload.add_argument("--yes", action="store_true", help="Upload the file. Without this flag, prints a dry run.")
 
@@ -859,6 +1268,19 @@ def main(argv: list[str] | None = None) -> int:
             print_json(load_json(FIELD_MAP))
         elif args.command == "template":
             print(SUBMISSION_TEMPLATE.read_text(encoding="utf-8"))
+        elif args.command == "plan-version":
+            print_json(
+                plan_versioning(
+                    args.project_dir,
+                    release_level=args.release_level,
+                    iteration_count=args.iteration_count,
+                    current_version=args.current_version,
+                    current_build=args.current_build,
+                    use_git=not args.no_git,
+                )
+            )
+        elif args.command == "apply-version":
+            print_json(apply_versioning(args))
         elif args.command == "validate":
             print_json(validate_submission_config(load_json(args.config)))
         elif args.command == "plan":

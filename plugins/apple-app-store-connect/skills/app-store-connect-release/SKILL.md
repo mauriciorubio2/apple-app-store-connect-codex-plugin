@@ -36,7 +36,17 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py template
 ```
 
 3. Draft or update a submission JSON file using `assets/submission-template.json`.
-4. Validate and plan before changes:
+4. Plan versioning before upload or submission:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-version \
+  --project-dir . \
+  --release-level auto
+```
+
+Use `--iteration-count <n>` when Codex or a build system has tracked the number of release-candidate iterations. This folds those iterations into the build number.
+
+5. Validate and plan before changes:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py validate --config appstore-submission.json
@@ -99,6 +109,37 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-screenshots \
 
 The plugin supports Apple's Build Uploads API for `.ipa` and `.pkg` files and also includes a Transporter fallback.
 
+## Versioning
+
+Apple separates:
+
+- App Store version: `CFBundleShortVersionString`, the user-visible version. Use three period-separated integers such as `1.2.3`, and keep it matched with App Store Connect's version string.
+- Build number: `CFBundleVersion`, the uploaded build iteration. Use one to three period-separated integers and increment it for each upload.
+
+Use the version planner before uploading:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-version \
+  --project-dir . \
+  --release-level auto \
+  --iteration-count 7
+```
+
+The planner reads Xcode `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, literal `Info.plist` values, and git history. `--release-level auto` is conservative: breaking-change markers produce a major bump, conventional `feat:` commits produce a minor bump, and other release builds produce a patch bump. If Codex has a reliable iteration count, pass it with `--iteration-count`; otherwise the planner uses commits since the latest tag or falls back to one.
+
+Apply the version locally only after confirmation:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py apply-version \
+  --project-dir . \
+  --config appstore-submission.json \
+  --release-level auto \
+  --iteration-count 7 \
+  --yes
+```
+
+This updates `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, literal Info.plist version values, and the submission config's version/build fields. Do not use `--force-plist` unless the user wants variable Info.plist values overwritten.
+
 API upload dry run:
 
 ```bash
@@ -107,6 +148,16 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --file build/App.ipa \
   --version-string 1.0.0 \
   --build-number 42
+```
+
+Automatic-version upload dry run:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
+  --app-id 1234567890 \
+  --file build/App.ipa \
+  --auto-version \
+  --project-dir .
 ```
 
 Confirmed API upload:
@@ -180,6 +231,8 @@ When the plugin MCP server is installed, prefer these tools over shell calls:
 - `asc_field_map`
 - `asc_validate_submission_config`
 - `asc_plan_submission_config`
+- `asc_plan_version`
+- `asc_apply_version`
 - `asc_apply_metadata`
 - `asc_list_apps`
 - `asc_upload_build_api`

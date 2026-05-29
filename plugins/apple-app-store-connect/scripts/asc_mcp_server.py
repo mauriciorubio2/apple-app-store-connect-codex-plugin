@@ -45,6 +45,44 @@ TOOLS = [
         },
     },
     {
+        "name": "asc_plan_version",
+        "description": "Infer the next App Store version and build number from a local Apple project and optional iteration count.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "projectDir": {"type": "string", "default": "."},
+                "releaseLevel": {
+                    "type": "string",
+                    "enum": ["auto", "same", "patch", "minor", "major"],
+                    "default": "auto",
+                },
+                "iterationCount": {"type": "integer"},
+                "currentVersion": {"type": "string"},
+                "currentBuild": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "asc_apply_version",
+        "description": "Apply the recommended version/build to local Xcode project settings. Requires confirm=true.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "projectDir": {"type": "string", "default": "."},
+                "configPath": {"type": "string"},
+                "releaseLevel": {
+                    "type": "string",
+                    "enum": ["auto", "same", "patch", "minor", "major"],
+                    "default": "auto",
+                },
+                "iterationCount": {"type": "integer"},
+                "currentVersion": {"type": "string"},
+                "currentBuild": {"type": "string"},
+                "confirm": {"type": "boolean", "default": False},
+            },
+        },
+    },
+    {
         "name": "asc_apply_metadata",
         "description": "Apply metadata from a submission config. Requires confirm=true and App Store Connect API credentials.",
         "inputSchema": {
@@ -77,11 +115,19 @@ TOOLS = [
                 "file": {"type": "string"},
                 "versionString": {"type": "string"},
                 "buildNumber": {"type": "string"},
+                "autoVersion": {"type": "boolean", "default": False},
+                "projectDir": {"type": "string", "default": "."},
+                "releaseLevel": {
+                    "type": "string",
+                    "enum": ["auto", "same", "patch", "minor", "major"],
+                    "default": "auto",
+                },
+                "iterationCount": {"type": "integer"},
                 "platform": {"type": "string", "default": "IOS"},
                 "waitSeconds": {"type": "integer", "default": 0},
                 "confirm": {"type": "boolean", "default": False},
             },
-            "required": ["appId", "file", "versionString", "buildNumber"],
+            "required": ["appId", "file"],
         },
     },
     {
@@ -146,6 +192,44 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         text = run_command(["python3", str(CLI), "validate", "--config", arguments["configPath"]])
     elif name == "asc_plan_submission_config":
         text = run_command(["python3", str(CLI), "plan", "--config", arguments["configPath"]])
+    elif name == "asc_plan_version":
+        command = [
+            "python3",
+            str(CLI),
+            "plan-version",
+            "--project-dir",
+            arguments.get("projectDir", "."),
+            "--release-level",
+            arguments.get("releaseLevel", "auto"),
+        ]
+        if arguments.get("iterationCount") is not None:
+            command += ["--iteration-count", str(arguments["iterationCount"])]
+        if arguments.get("currentVersion"):
+            command += ["--current-version", arguments["currentVersion"]]
+        if arguments.get("currentBuild"):
+            command += ["--current-build", arguments["currentBuild"]]
+        text = run_command(command)
+    elif name == "asc_apply_version":
+        command = [
+            "python3",
+            str(CLI),
+            "apply-version",
+            "--project-dir",
+            arguments.get("projectDir", "."),
+            "--release-level",
+            arguments.get("releaseLevel", "auto"),
+        ]
+        if arguments.get("configPath"):
+            command += ["--config", arguments["configPath"]]
+        if arguments.get("iterationCount") is not None:
+            command += ["--iteration-count", str(arguments["iterationCount"])]
+        if arguments.get("currentVersion"):
+            command += ["--current-version", arguments["currentVersion"]]
+        if arguments.get("currentBuild"):
+            command += ["--current-build", arguments["currentBuild"]]
+        if arguments.get("confirm"):
+            command.append("--yes")
+        text = run_command(command)
     elif name == "asc_apply_metadata":
         command = ["python3", str(CLI), "apply-metadata", "--config", arguments["configPath"]]
         if arguments.get("confirm"):
@@ -167,15 +251,23 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             arguments["appId"],
             "--file",
             arguments["file"],
-            "--version-string",
-            arguments["versionString"],
-            "--build-number",
-            arguments["buildNumber"],
             "--platform",
             arguments.get("platform", "IOS"),
+            "--project-dir",
+            arguments.get("projectDir", "."),
+            "--release-level",
+            arguments.get("releaseLevel", "auto"),
             "--wait",
             str(arguments.get("waitSeconds", 0)),
         ]
+        if arguments.get("versionString"):
+            command += ["--version-string", arguments["versionString"]]
+        if arguments.get("buildNumber"):
+            command += ["--build-number", arguments["buildNumber"]]
+        if arguments.get("autoVersion"):
+            command.append("--auto-version")
+        if arguments.get("iterationCount") is not None:
+            command += ["--iteration-count", str(arguments["iterationCount"])]
         if arguments.get("confirm"):
             command.append("--yes")
         text = run_command(command)
@@ -194,7 +286,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.0.0"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.1.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

@@ -1,7 +1,7 @@
 {
   "name": "apple-app-store-connect",
-  "version": "1.0.0",
-  "description": "Automate App Store Connect release prep, metadata, screenshots, build uploads, and review submission workflows from Codex.",
+  "version": "1.1.0",
+  "description": "Automate App Store Connect release prep, versioning, metadata, screenshots, build uploads, and review submission workflows from Codex.",
   "author": {
     "name": "mauriciorubio2",
     "url": "https://github.com/mauriciorubio2"
@@ -24,7 +24,7 @@
   "interface": {
     "displayName": "Apple App Store Connect",
     "shortDescription": "Prepare and submit App Store releases with Codex.",
-    "longDescription": "Connects Codex to Apple App Store Connect workflows for release metadata, ASO and Apple Ads copy, conversion-focused screenshots, build uploads, version details, review notes, subscriptions, and review submissions using Apple's public APIs and delivery tooling.",
+    "longDescription": "Connects Codex to Apple App Store Connect workflows for release versioning, metadata, ASO and Apple Ads copy, conversion-focused screenshots, build uploads, version details, review notes, subscriptions, and review submissions using Apple's public APIs and delivery tooling.",
     "developerName": "mauriciorubio2",
     "category": "Developer Tools",
     "capabilities": [

@@ -17,7 +17,8 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
 - Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
-- Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback.
+- Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
+- Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback and optional automatic versioning.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
 - Prepare subscription/IAP localization and review screenshot checklists.
 - Create dry-run plans so a human can approve exactly what will change.
@@ -83,6 +84,26 @@ Apply metadata after approval:
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py apply-metadata --config appstore-submission.json --yes
 ```
 
+Plan the next App Store version and build number:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-version \
+  --project-dir /path/to/MyApp \
+  --release-level auto \
+  --iteration-count 7
+```
+
+Apply the recommended version locally after approval:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py apply-version \
+  --project-dir /path/to/MyApp \
+  --config appstore-submission.json \
+  --release-level auto \
+  --iteration-count 7 \
+  --yes
+```
+
 Upload a build with the API:
 
 ```bash
@@ -94,6 +115,25 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --wait 1800 \
   --yes
 ```
+
+Upload a build and let the plugin infer missing version/build values:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
+  --app-id 1234567890 \
+  --file build/App.ipa \
+  --auto-version \
+  --project-dir /path/to/MyApp \
+  --iteration-count 7 \
+  --wait 1800 \
+  --yes
+```
+
+## Versioning Behavior
+
+Apple separates the user-facing App Store version from the build iteration. `CFBundleShortVersionString` should match the App Store version and use three period-separated integers such as `1.2.3`. `CFBundleVersion` identifies the uploaded build and uses one to three period-separated integers.
+
+The plugin can infer the next values from Xcode `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, literal `Info.plist` values, git history, and an optional `--iteration-count`. The default `auto` release level uses git messages conservatively: breaking-change markers become major bumps, conventional `feat:` commits become minor bumps, and other release builds become patch bumps. Build numbers always increment, using the provided iteration count when available.
 
 Generate screenshots:
 

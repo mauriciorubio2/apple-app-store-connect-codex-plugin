@@ -178,6 +178,8 @@
       "automatableFields": [
         "cfBundleShortVersionString",
         "cfBundleVersion",
+        "MARKETING_VERSION",
+        "CURRENT_PROJECT_VERSION",
         "platform",
         "ipa/pkg upload reservations",
         "multipart upload operations",
@@ -188,6 +190,24 @@
         "xcrun altool upload",
         "Xcode Organizer upload"
       ]
+    },
+    {
+      "group": "Local project versioning",
+      "resource": "Xcode project files and submission config",
+      "endpointCoverage": [
+        "Local project.pbxproj inspection",
+        "Local Info.plist inspection",
+        "Local submission JSON update"
+      ],
+      "automatableFields": [
+        "MARKETING_VERSION",
+        "CURRENT_PROJECT_VERSION",
+        "CFBundleShortVersionString",
+        "CFBundleVersion",
+        "version.versionString",
+        "build.buildNumber"
+      ],
+      "notes": "The plugin can infer version/build values from project files, git history, and optional Codex iteration counts. It dry-runs by default and updates local project files only after explicit confirmation."
     },
     {
       "group": "Review details and submission",
