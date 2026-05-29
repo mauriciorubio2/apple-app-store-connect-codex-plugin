@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.3] - 2026-05-30
+
+- Tightened subscription metadata validation so Terms of Use/EULA and Privacy Policy URLs must be labeled in the App Store description.
+- Added regression coverage for descriptions that mention terms without a functional Terms of Use/EULA link.
+
 ## [1.3.2] - 2026-05-30
 
 - Added subscription-app validation for Terms of Use, Privacy Policy, and subscription information inside App Store descriptions.

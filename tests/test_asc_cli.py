@@ -76,6 +76,29 @@ class AscCliValidationTests(unittest.TestCase):
             any("Terms of Use" in issue["message"] for issue in result["issues"] if issue["severity"] == "error")
         )
 
+    def test_subscription_description_requires_labeled_terms_url(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "appInfoLocalizations": [
+                {"locale": "en-US", "name": "Example Product", "privacyPolicyUrl": "https://example.com/privacy"}
+            ],
+            "versionLocalizations": [
+                {
+                    "locale": "en-US",
+                    "description": "SUBSCRIPTION INFORMATION:\nPro renews automatically. You can cancel 24 hours before renewal. Terms apply.\nPrivacy Policy: https://example.com/privacy",
+                    "keywords": "planner,focus",
+                    "supportUrl": "https://example.com/support",
+                }
+            ],
+            "subscriptions": [{"reviewScreenshot": "paywall.png"}],
+        }
+        result = cli.validate_submission_config(config)
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("Terms of Use or EULA URL" in issue["message"] for issue in result["issues"] if issue["severity"] == "error")
+        )
+
     def test_plan_does_not_require_credentials(self):
         cli = load_cli()
         config = {

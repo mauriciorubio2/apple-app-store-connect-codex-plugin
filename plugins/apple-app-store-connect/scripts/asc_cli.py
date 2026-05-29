@@ -46,8 +46,6 @@ TEXT_LIMITS = {
 
 SUBSCRIPTION_DESCRIPTION_MARKERS = {
     "section": "subscription information",
-    "privacy": "privacy",
-    "terms": "terms",
     "renewal": "automatically renew",
     "cancel": "cancel",
     "twenty_four_hours": "24 hours",
@@ -380,10 +378,14 @@ def validate_subscription_description(
         return
 
     normalized = description.lower()
+    lines = normalized.splitlines()
+    has_privacy_url = any(("http://" in line or "https://" in line) and "privacy" in line for line in lines)
+    has_terms_url = any(
+        ("http://" in line or "https://" in line) and ("terms" in line or "eula" in line)
+        for line in lines
+    )
     checks = [
         ("SUBSCRIPTION INFORMATION section", "section", "warning"),
-        ("Privacy Policy link", "privacy", "warning"),
-        ("Terms of Use or EULA link", "terms", "error"),
         ("auto-renewal disclosure", "renewal", "warning"),
         ("cancellation instructions", "cancel", "warning"),
         ("24-hour renewal/cancellation disclosure", "twenty_four_hours", "warning"),
@@ -398,12 +400,20 @@ def validate_subscription_description(
                 }
             )
 
-    if "http://" not in normalized and "https://" not in normalized:
+    if not has_privacy_url:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": prefix + ".description",
+                "message": "Subscription apps should include a labeled Privacy Policy URL in the App Store description.",
+            }
+        )
+    if not has_terms_url:
         issues.append(
             {
                 "severity": "error",
                 "field": prefix + ".description",
-                "message": "Subscription metadata needs functional Privacy Policy and Terms of Use URLs in the App Store description.",
+                "message": "Subscription apps must include a labeled Terms of Use or EULA URL in the App Store description.",
             }
         )
 
