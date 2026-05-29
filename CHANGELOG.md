@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.1] - 2026-05-30
+
+- Added a reusable `screenshot-recipe.json` asset for six-shot App Store screenshot sequences.
+- Expanded the App Store Connect release skill with the screenshot recipe workflow, ordering, CTA guidance, and Pro-labeling rules.
+- Documented how to copy and render the recipe for future app submissions.
+
 ## [1.3.0] - 2026-05-29
 
 - Added `configure-free-download` to set apps to $0/free download and available in every App Store territory after an explicit dry-run/approval step.

@@ -1,0 +1,69 @@
+{
+  "outputDir": "generated-screenshots/en-US/APP_IPHONE_67",
+  "displayType": "APP_IPHONE_67",
+  "accent": "#111827",
+  "textColor": "#101114",
+  "mutedColor": "#20242B",
+  "ctaTextColor": "#FFFFFF",
+  "paidBadge": "Pro",
+  "phoneTopRatio": 0.36,
+  "phoneWidthRatio": 0.72,
+  "recipeNotes": [
+    "Copy this file into the app repo and replace each source path with a real UI capture.",
+    "Keep the first three screenshots focused on core value, high-intent search/action, and the strongest differentiator.",
+    "Use bright solid backgrounds for App Store search contrast, one benefit per screenshot, and paid labels for Pro-only features."
+  ],
+  "screens": [
+    {
+      "source": "screenshots/raw/01-core-value.png",
+      "output": "01-core-value.png",
+      "background": "#FFB81C",
+      "headline": "Track the thing users came for",
+      "subheadline": "Name the core outcome using natural ASO keywords.",
+      "cta": "Free to download"
+    },
+    {
+      "source": "screenshots/raw/02-search-workflow.png",
+      "output": "02-search-workflow.png",
+      "background": "#31D7FF",
+      "headline": "Find answers fast",
+      "subheadline": "Show the most common search, filter, or browse workflow.",
+      "cta": "Search in seconds"
+    },
+    {
+      "source": "screenshots/raw/03-differentiator.png",
+      "output": "03-differentiator.png",
+      "background": "#FF4F5E",
+      "headline": "Show the feature that sells",
+      "subheadline": "Make the strongest paid or differentiating feature obvious.",
+      "cta": "Start free trial",
+      "paid": true
+    },
+    {
+      "source": "screenshots/raw/04-progress.png",
+      "output": "04-progress.png",
+      "background": "#3EEA8B",
+      "headline": "Make progress easy",
+      "subheadline": "Show organized tables, timelines, maps, dashboards, or summaries.",
+      "cta": "Stay on top"
+    },
+    {
+      "source": "screenshots/raw/05-archive.png",
+      "output": "05-archive.png",
+      "background": "#7C5CFF",
+      "headline": "Go deeper when it matters",
+      "subheadline": "Highlight history, archives, analytics, exports, or reference depth.",
+      "cta": "Open the archive",
+      "paid": true
+    },
+    {
+      "source": "screenshots/raw/06-paywall.png",
+      "output": "06-paywall.png",
+      "background": "#FFD84D",
+      "headline": "Upgrade with confidence",
+      "subheadline": "Show the paywall or plan screen with clear trial and subscription context.",
+      "cta": "No payment due now",
+      "paid": true
+    }
+  ]
+}

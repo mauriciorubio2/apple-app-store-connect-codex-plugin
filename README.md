@@ -177,11 +177,12 @@ Generate screenshots:
 
 ```bash
 python3 -m pip install pillow
+cp plugins/apple-app-store-connect/assets/screenshot-recipe.json appstore-screenshot-recipe.json
 python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
-  --config plugins/apple-app-store-connect/assets/screenshot-template.json
+  --config appstore-screenshot-recipe.json
 ```
 
-Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator.
+Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and paywall or upgrade value.
 
 ## Privacy And Security
 

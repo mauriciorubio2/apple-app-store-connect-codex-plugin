@@ -110,11 +110,36 @@ Apple allows one to ten screenshots per supported device size/localization. The 
 - If subscriptions or paid features are shown, mark them clearly with labels such as "Pro feature", "Included with Pro", or the subscription tier name.
 - Do not imply a paid feature is free. Do not hide terms, paywall state, or subscription context.
 
+## Screenshot Recipe
+
+Use this repeatable recipe when creating App Store screenshots for a new app:
+
+1. Capture clean app UI screenshots for the target device size, usually `APP_IPHONE_67` first.
+2. Copy `assets/screenshot-recipe.json` into the app repo, then replace each `source`, `output`, `headline`, `subheadline`, and `cta`.
+3. Order screenshots by conversion value:
+   - Screenshot 1: core value proposition and highest-intent ASO terms.
+   - Screenshot 2: search, filter, browse, or most common user workflow.
+   - Screenshot 3: strongest differentiator or paid feature, clearly labeled if Pro.
+   - Screenshot 4: progress, organization, dashboard, groups, timeline, or status view.
+   - Screenshot 5: depth feature such as history, archive, analytics, exports, or rankings.
+   - Screenshot 6: paywall, trial, subscription value, or upgrade screen when monetized.
+4. Use bright solid backgrounds, not busy patterns, so screenshots stand out in App Store search.
+5. Keep text short: one sales-focused headline, one benefit line, and one CTA pill.
+6. Include search-friendly wording naturally, but do not keyword-stuff or make claims the app cannot support.
+7. For paid features, set `paid: true` so the renderer adds a Pro label.
+8. Render a contact sheet or quick preview and check text legibility before upload.
+
+The bundled recipe is intentionally generic and should be copied, not edited in place:
+
+```bash
+cp plugins/apple-app-store-connect/assets/screenshot-recipe.json appstore-screenshot-recipe.json
+```
+
 To render screenshots from raw captures:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
-  --config plugins/apple-app-store-connect/assets/screenshot-template.json
+  --config appstore-screenshot-recipe.json
 ```
 
 Install Pillow first if the script asks for it:
