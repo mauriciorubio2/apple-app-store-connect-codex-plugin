@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.2] - 2026-05-30
+
+- Added subscription-app validation for Terms of Use, Privacy Policy, and subscription information inside App Store descriptions.
+- Updated the submission template with a compliant subscription information section.
+- Expanded release guidance to call out Apple's metadata Terms of Use requirement before review submission.
+
 ## [1.3.1] - 2026-05-30
 
 - Added a reusable `screenshot-recipe.json` asset for six-shot App Store screenshot sequences.

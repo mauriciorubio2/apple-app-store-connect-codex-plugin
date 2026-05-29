@@ -53,6 +53,29 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertIn("appInfoLocalizations[en-US].name", fields)
         self.assertTrue(any(issue["field"] == "keywords" for issue in result["issues"]))
 
+    def test_subscription_description_requires_terms_link(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "appInfoLocalizations": [
+                {"locale": "en-US", "name": "Example Product", "privacyPolicyUrl": "https://example.com/privacy"}
+            ],
+            "versionLocalizations": [
+                {
+                    "locale": "en-US",
+                    "description": "Example Product has a Pro subscription.",
+                    "keywords": "planner,focus",
+                    "supportUrl": "https://example.com/support",
+                }
+            ],
+            "subscriptions": [{"reviewScreenshot": "paywall.png"}],
+        }
+        result = cli.validate_submission_config(config)
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("Terms of Use" in issue["message"] for issue in result["issues"] if issue["severity"] == "error")
+        )
+
     def test_plan_does_not_require_credentials(self):
         cli = load_cli()
         config = {

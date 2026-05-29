@@ -22,7 +22,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback and optional automatic versioning.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
-- Prepare subscription/IAP localization and review screenshot checklists.
+- Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
 - Create dry-run plans so a human can approve exactly what will change.
 
 ## Apple Documentation Used
@@ -104,6 +104,8 @@ Validate and plan:
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py validate --config appstore-submission.json
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan --config appstore-submission.json
 ```
+
+For apps with auto-renewable subscriptions, validation expects the App Store description to include a `SUBSCRIPTION INFORMATION:` section with trial/plan context, auto-renewal and cancellation language, plus functional Privacy Policy and Terms of Use/EULA links. This catches the common App Review blocker where Terms of Use is present in-app but missing from App Store metadata.
 
 Apply metadata after approval:
 

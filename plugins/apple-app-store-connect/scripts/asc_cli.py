@@ -44,6 +44,15 @@ TEXT_LIMITS = {
     "whatsNew": (0, 4000),
 }
 
+SUBSCRIPTION_DESCRIPTION_MARKERS = {
+    "section": "subscription information",
+    "privacy": "privacy",
+    "terms": "terms",
+    "renewal": "automatically renew",
+    "cancel": "cancel",
+    "twenty_four_hours": "24 hours",
+}
+
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
 AUTH_KEY_RE = re.compile(r"^AuthKey_([A-Za-z0-9]+)\.p8$")
@@ -351,6 +360,50 @@ def validate_keywords(value: str | None, issues: list[dict[str, str]]) -> None:
                 "severity": "warning",
                 "field": "keywords",
                 "message": "Avoid generic category words such as app or apps.",
+            }
+        )
+
+
+def validate_subscription_description(
+    description: str,
+    prefix: str,
+    issues: list[dict[str, str]],
+) -> None:
+    if not description:
+        issues.append(
+            {
+                "severity": "error",
+                "field": prefix + ".description",
+                "message": "Subscription apps must include a Terms of Use link, Privacy Policy link, and subscription information in the App Store description.",
+            }
+        )
+        return
+
+    normalized = description.lower()
+    checks = [
+        ("SUBSCRIPTION INFORMATION section", "section", "warning"),
+        ("Privacy Policy link", "privacy", "warning"),
+        ("Terms of Use or EULA link", "terms", "error"),
+        ("auto-renewal disclosure", "renewal", "warning"),
+        ("cancellation instructions", "cancel", "warning"),
+        ("24-hour renewal/cancellation disclosure", "twenty_four_hours", "warning"),
+    ]
+    for label, marker, severity in checks:
+        if SUBSCRIPTION_DESCRIPTION_MARKERS[marker] not in normalized:
+            issues.append(
+                {
+                    "severity": severity,
+                    "field": prefix + ".description",
+                    "message": f"Subscription apps should include a functional {label} in the App Store description.",
+                }
+            )
+
+    if "http://" not in normalized and "https://" not in normalized:
+        issues.append(
+            {
+                "severity": "error",
+                "field": prefix + ".description",
+                "message": "Subscription metadata needs functional Privacy Policy and Terms of Use URLs in the App Store description.",
             }
         )
 
@@ -809,6 +862,7 @@ def configure_free_download(args: argparse.Namespace, client: AppStoreConnectCli
 
 def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
+    subscriptions = as_list(config.get("subscriptions"))
 
     app = config.get("app", {})
     platform = app.get("platform", "IOS")
@@ -883,6 +937,8 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                     "message": "Avoid specific prices in App Store descriptions.",
                 }
             )
+        if subscriptions:
+            validate_subscription_description(description, prefix, issues)
 
     review = config.get("reviewDetails", {})
     for field in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail"):
@@ -927,7 +983,6 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
 
-    subscriptions = as_list(config.get("subscriptions"))
     if subscriptions:
         paid_screenshot_seen = False
         for sub in subscriptions:

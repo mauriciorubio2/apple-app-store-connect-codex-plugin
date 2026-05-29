@@ -87,6 +87,7 @@ Use Apple's product page recommendations:
 - Name: 2-30 characters. Make the app name or brand clear. Add a category/use-case phrase only if it fits naturally.
 - Subtitle: 30 characters maximum. Describe the core user outcome, not a vague slogan.
 - Description: lead with the strongest benefit in the first sentence because it is visible before expansion. Use one concise paragraph followed by a short feature list. Avoid keyword stuffing and avoid specific prices.
+- Subscription apps: append a `SUBSCRIPTION INFORMATION:` section to the App Store description before review. It must include the Pro/subscription value, trial and plan cadence summary, auto-renewal/cancellation disclosure, a functional Privacy Policy URL, and a functional Terms of Use/EULA URL. Apple can block review if the Terms of Use link is missing from metadata.
 - Keywords: 100 characters maximum. Use relevant comma-separated terms with no spaces after commas. Avoid duplicates, plural variants when singular is present, category names, competitor names, trademarks, celebrity names, irrelevant terms, and objectionable terms.
 - Promotional text: 170 characters maximum. Use for current launches, offers, or updates; do not use it for search ranking keywords.
 - What's New: describe user-visible changes plainly. Avoid empty "bug fixes" copy when the release has meaningful improvements.
@@ -277,6 +278,8 @@ For subscriptions and paid features:
 
 - Include localized subscription names and descriptions.
 - Include App Review screenshots for the paywall or purchased feature.
+- Include Privacy Policy and Terms of Use links in the App Store description, even if the app info localization already has a privacy URL.
+- Include a subscription information section that explains the trial, weekly/monthly/yearly or relevant plan cadence, auto-renewal, cancellation timing, account billing, and account settings management.
 - For first-time IAPs/subscriptions, prepare to submit them with a new app version when Apple requires it.
 - In screenshots and description, avoid presenting paid-only features as free.
 - App Review notes should explain how reviewers can access sandbox purchase paths or pre-unlocked demos.
