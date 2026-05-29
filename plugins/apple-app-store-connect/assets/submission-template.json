@@ -32,6 +32,12 @@
     "buildNumber": "42",
     "versioningSource": "xcode-project"
   },
+  "pricingAvailability": {
+    "downloadPrice": "0.00",
+    "baseTerritory": "USA",
+    "availability": "allCountries",
+    "availableInNewTerritories": true
+  },
   "versionLocalizations": [
     {
       "id": "version-localization-id",

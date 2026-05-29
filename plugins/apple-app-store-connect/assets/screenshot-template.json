@@ -1,29 +1,40 @@
 {
   "outputDir": "generated-screenshots/en-US/APP_IPHONE_67",
   "displayType": "APP_IPHONE_67",
-  "background": "#F5F7FA",
-  "accent": "#0A84FF",
+  "background": "#FFB81C",
+  "accent": "#111827",
+  "textColor": "#111827",
+  "mutedColor": "#2B2118",
+  "ctaTextColor": "#FFFFFF",
   "paidBadge": "Pro",
+  "phoneTopRatio": 0.35,
+  "phoneWidthRatio": 0.72,
   "screens": [
     {
       "source": "screenshots/raw/01-home.png",
       "output": "01-plan.png",
-      "headline": "Plan your day in minutes",
-      "subheadline": "Smart priorities keep the next step obvious.",
+      "background": "#FFB81C",
+      "headline": "Find the next match fast",
+      "subheadline": "Use high-intent ASO terms naturally: live scores, fixtures, teams, alerts.",
+      "cta": "Free to download",
       "paid": false
     },
     {
       "source": "screenshots/raw/02-focus.png",
       "output": "02-focus.png",
-      "headline": "Stay focused without noise",
-      "subheadline": "Only the reminders that matter reach you.",
+      "background": "#31D7FF",
+      "headline": "Turn searches into installs",
+      "subheadline": "Lead with one clear fan benefit per screenshot and keep copy scannable.",
+      "cta": "Track every kickoff",
       "paid": false
     },
     {
       "source": "screenshots/raw/03-pro.png",
       "output": "03-pro.png",
-      "headline": "Unlock advanced planning",
-      "subheadline": "Recurring plans and insights are included with Pro.",
+      "background": "#FF4F5E",
+      "headline": "Unlock matchday power",
+      "subheadline": "Label paid features clearly for App Review and user trust.",
+      "cta": "Start free trial",
       "paid": true
     }
   ]

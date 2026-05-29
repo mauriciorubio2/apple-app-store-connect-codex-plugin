@@ -113,6 +113,19 @@ TOOLS = [
         },
     },
     {
+        "name": "asc_configure_free_download",
+        "description": "Set an app to $0/free download and available in all App Store territories. Requires confirm=true.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "appId": {"type": "string"},
+                "configPath": {"type": "string"},
+                "baseTerritory": {"type": "string", "default": "USA"},
+                "confirm": {"type": "boolean", "default": False},
+            },
+        },
+    },
+    {
         "name": "asc_list_apps",
         "description": "List apps visible to the configured App Store Connect API key.",
         "inputSchema": {
@@ -276,6 +289,21 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if arguments.get("confirm"):
             command.append("--yes")
         text = run_command(command)
+    elif name == "asc_configure_free_download":
+        command = [
+            "python3",
+            str(CLI),
+            "configure-free-download",
+            "--base-territory",
+            arguments.get("baseTerritory", "USA"),
+        ]
+        if arguments.get("appId"):
+            command += ["--app-id", arguments["appId"]]
+        if arguments.get("configPath"):
+            command += ["--config", arguments["configPath"]]
+        if arguments.get("confirm"):
+            command.append("--yes")
+        text = run_command(command)
     elif name == "asc_list_apps":
         command = ["python3", str(CLI), "list-apps"]
         if arguments.get("bundleId"):
@@ -327,7 +355,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.2.0"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.3.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

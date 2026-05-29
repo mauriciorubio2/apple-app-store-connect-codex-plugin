@@ -627,6 +627,186 @@ def apply_versioning(args: argparse.Namespace) -> dict[str, Any]:
     return results
 
 
+def app_store_not_found(exc: Exception) -> bool:
+    return " failed with 404:" in str(exc)
+
+
+def app_id_from_args(args: argparse.Namespace) -> str:
+    if getattr(args, "app_id", None):
+        return args.app_id
+    if getattr(args, "config", None):
+        config = load_json(args.config)
+        app_id = (config.get("app") or {}).get("id")
+        if app_id:
+            return app_id
+    raise AppStoreConnectError("Provide --app-id or a --config containing app.id.")
+
+
+def build_free_app_price_schedule_body(app_id: str, base_territory: str, app_price_point_id: str) -> dict[str, Any]:
+    return {
+        "data": {
+            "type": "appPriceSchedules",
+            "relationships": {
+                "app": relationship("apps", app_id),
+                "baseTerritory": relationship("territories", base_territory),
+                "manualPrices": {"data": [{"type": "appPrices", "id": "${free-price-0}"}]},
+            },
+        },
+        "included": [
+            {
+                "type": "appPrices",
+                "id": "${free-price-0}",
+                "relationships": {"appPricePoint": relationship("appPricePoints", app_price_point_id)},
+            }
+        ],
+    }
+
+
+def build_all_territory_availability_body(app_id: str, territory_ids: list[str]) -> dict[str, Any]:
+    return {
+        "data": {
+            "type": "appAvailabilities",
+            "attributes": {"availableInNewTerritories": True},
+            "relationships": {"app": relationship("apps", app_id)},
+        },
+        "included": [
+            {
+                "type": "territoryAvailabilities",
+                "id": f"${{availability-{territory_id}}}",
+                "attributes": {"available": True},
+                "relationships": {"territory": relationship("territories", territory_id)},
+            }
+            for territory_id in territory_ids
+        ],
+    }
+
+
+def find_free_price_point(client: AppStoreConnectClient, app_id: str, base_territory: str) -> dict[str, Any]:
+    response = client.get(
+        f"/v1/apps/{app_id}/appPricePoints",
+        {
+            "filter[territory]": base_territory,
+            "fields[appPricePoints]": "customerPrice,proceeds,territory",
+            "include": "territory",
+            "limit": "200",
+        },
+    )
+    for item in response.get("data", []):
+        price = str(item.get("attributes", {}).get("customerPrice", "")).strip()
+        if price in {"0", "0.0", "0.00"}:
+            return item
+    raise AppStoreConnectError(f"Could not find a free app price point for territory {base_territory}.")
+
+
+def list_territory_ids(client: AppStoreConnectClient) -> list[str]:
+    response = client.get("/v1/territories", {"limit": "200"})
+    territory_ids = [item["id"] for item in response.get("data", [])]
+    if not territory_ids:
+        raise AppStoreConnectError("No App Store territories were returned by App Store Connect.")
+    return territory_ids
+
+
+def set_all_territories_available(
+    client: AppStoreConnectClient, app_id: str, territory_ids: list[str]
+) -> dict[str, Any]:
+    try:
+        availability = client.get(f"/v1/apps/{app_id}/appAvailabilityV2")
+    except AppStoreConnectError as exc:
+        if not app_store_not_found(exc):
+            raise
+        body = build_all_territory_availability_body(app_id, territory_ids)
+        created = client.post("/v2/appAvailabilities", body)
+        return {
+            "mode": "created",
+            "availabilityId": created.get("data", {}).get("id"),
+            "availableInNewTerritories": created.get("data", {})
+            .get("attributes", {})
+            .get("availableInNewTerritories"),
+            "territoryCount": len(territory_ids),
+            "patchedTerritoryCount": len(territory_ids),
+        }
+
+    availability_id = availability.get("data", {}).get("id") or app_id
+    client.patch(
+        f"/v2/appAvailabilities/{availability_id}",
+        json_api_body("appAvailabilities", {"availableInNewTerritories": True}, resource_id=availability_id),
+    )
+    current = client.get(
+        f"/v2/appAvailabilities/{availability_id}/territoryAvailabilities",
+        {"limit": "200"},
+    )
+    patched = []
+    for item in current.get("data", []):
+        if item.get("attributes", {}).get("available") is True:
+            continue
+        client.patch(
+            f"/v2/territoryAvailabilities/{item['id']}",
+            json_api_body("territoryAvailabilities", {"available": True}, resource_id=item["id"]),
+        )
+        patched.append(item["id"])
+    return {
+        "mode": "updated",
+        "availabilityId": availability_id,
+        "availableInNewTerritories": True,
+        "territoryCount": len(current.get("data", [])),
+        "patchedTerritoryCount": len(patched),
+    }
+
+
+def configure_free_download(args: argparse.Namespace, client: AppStoreConnectClient | None) -> dict[str, Any]:
+    app_id = app_id_from_args(args)
+    base_territory = args.base_territory
+    if not args.yes:
+        return {
+            "dryRun": True,
+            "appId": app_id,
+            "baseTerritory": base_territory,
+            "target": {
+                "customerPrice": "0.00",
+                "availability": "all App Store territories",
+                "availableInNewTerritories": True,
+            },
+            "actions": [
+                "Find the free app price point for the base territory.",
+                "Create or replace the app price schedule with that free price point.",
+                "Create or update app availability so every territory is marked available.",
+                "Enable availability automatically for territories Apple adds later.",
+            ],
+        }
+    if client is None:
+        raise AppStoreConnectError("An App Store Connect client is required when configuring price and availability.")
+
+    free_price_point = find_free_price_point(client, app_id, base_territory)
+    price_schedule = client.post(
+        "/v1/appPriceSchedules",
+        build_free_app_price_schedule_body(app_id, base_territory, free_price_point["id"]),
+    )
+    territory_ids = list_territory_ids(client)
+    availability = set_all_territories_available(client, app_id, territory_ids)
+    verification = client.get(
+        f"/v2/appAvailabilities/{app_id}/territoryAvailabilities",
+        {"limit": "200"},
+    )
+    unavailable = [
+        item["id"]
+        for item in verification.get("data", [])
+        if item.get("attributes", {}).get("available") is not True
+    ]
+    return {
+        "dryRun": False,
+        "appId": app_id,
+        "priceScheduleId": price_schedule.get("data", {}).get("id"),
+        "freePricePointId": free_price_point["id"],
+        "baseTerritory": base_territory,
+        "availability": availability,
+        "verification": {
+            "territoryCount": len(verification.get("data", [])),
+            "availableCount": len(verification.get("data", [])) - len(unavailable),
+            "unavailableCount": len(unavailable),
+        },
+    }
+
+
 def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
 
@@ -902,6 +1082,18 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "action": "PATCH",
                 "resource": "ageRatingDeclarations",
                 "fields": sorted((config["ageRating"].get("attributes") or {}).keys()),
+            }
+        )
+    if config.get("pricingAvailability"):
+        pricing = config["pricingAvailability"]
+        actions.append(
+            {
+                "action": "POST/PATCH",
+                "resource": "appPriceSchedules/appAvailabilities",
+                "downloadPrice": pricing.get("downloadPrice"),
+                "availability": pricing.get("availability"),
+                "baseTerritory": pricing.get("baseTerritory", "USA"),
+                "tool": "configure-free-download",
             }
         )
     for group in as_list(config.get("screenshots")):
@@ -1423,6 +1615,15 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_config_argument(apply)
     apply.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
 
+    free = sub.add_parser(
+        "configure-free-download",
+        help="Set the app to free download and make it available in all App Store territories.",
+    )
+    free.add_argument("--app-id", help="App Store Connect app id. Can also be read from --config app.id.")
+    free.add_argument("--config", help="Submission JSON containing app.id.")
+    free.add_argument("--base-territory", default="USA", help="Base territory for the free app price point.")
+    free.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
+
     shots = sub.add_parser("upload-screenshots", help="Upload screenshots from the config.")
     add_common_config_argument(shots)
     shots.add_argument("--yes", action="store_true", help="Upload screenshots. Without this flag, prints a dry run.")
@@ -1492,6 +1693,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "apply-metadata":
             client = AppStoreConnectClient() if args.yes else None
             print_json(apply_submission(load_json(args.config), client, args.yes))
+        elif args.command == "configure-free-download":
+            client = AppStoreConnectClient() if args.yes else None
+            print_json(configure_free_download(args, client))
         elif args.command == "upload-screenshots":
             client = AppStoreConnectClient() if args.yes else None
             print_json(upload_screenshots(load_json(args.config), client, args.yes))

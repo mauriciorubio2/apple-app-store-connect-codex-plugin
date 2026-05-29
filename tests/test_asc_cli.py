@@ -172,6 +172,37 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertIn("ASC_ISSUER_ID", payload["missing"])
         self.assertTrue(any("ASC_KEY_ID" in line for line in payload["shell"]["exports"]))
 
+    def test_free_download_plan_reads_app_id_from_config(self):
+        cli = load_cli()
+        config = {"app": {"id": "1234567890"}}
+        with tempfile.NamedTemporaryFile("w", suffix=".json") as file:
+            json.dump(config, file)
+            file.flush()
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                code = cli.main(["configure-free-download", "--config", file.name])
+        payload = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["dryRun"])
+        self.assertEqual(payload["appId"], "1234567890")
+        self.assertEqual(payload["target"]["customerPrice"], "0.00")
+        self.assertEqual(payload["target"]["availability"], "all App Store territories")
+
+    def test_free_price_and_availability_bodies_use_json_api_relationships(self):
+        cli = load_cli()
+        price_body = cli.build_free_app_price_schedule_body("123", "USA", "free-point")
+        availability_body = cli.build_all_territory_availability_body("123", ["USA", "AUS"])
+        self.assertEqual(
+            price_body["data"]["relationships"]["manualPrices"]["data"][0],
+            {"type": "appPrices", "id": "${free-price-0}"},
+        )
+        self.assertEqual(
+            price_body["included"][0]["relationships"]["appPricePoint"]["data"]["id"],
+            "free-point",
+        )
+        self.assertTrue(availability_body["data"]["attributes"]["availableInNewTerritories"])
+        self.assertEqual(len(availability_body["included"]), 2)
+        self.assertTrue(all(item["attributes"]["available"] for item in availability_body["included"]))
+
 
 if __name__ == "__main__":
     unittest.main()

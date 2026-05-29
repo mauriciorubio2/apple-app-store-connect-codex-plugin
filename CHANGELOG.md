@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.0] - 2026-05-29
+
+- Added `configure-free-download` to set apps to $0/free download and available in every App Store territory after an explicit dry-run/approval step.
+- Added MCP access through `asc_configure_free_download` for future app release workflows.
+- Improved screenshot template defaults for bright solid backgrounds, conversion-focused headers, CTA pills, ASO/Apple Ads-aware copy, and clear Pro feature labeling.
+
 ## [1.2.0] - 2026-05-29
 
 - Added `credential-setup` and `doctor --fix` helpers for secure local App Store Connect API key setup.

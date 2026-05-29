@@ -66,6 +66,20 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py validate --config app
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan --config appstore-submission.json
 ```
 
+7. For free-to-download apps, plan the $0 price and all-country availability before submission:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-download \
+  --config appstore-submission.json
+```
+
+Apply only after the user confirms the app should be free in every App Store territory:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-download \
+  --config appstore-submission.json --yes
+```
+
 ## Metadata Guidance
 
 Use Apple's product page recommendations:
@@ -89,8 +103,9 @@ When optimizing for Apple Ads:
 Apple allows one to ten screenshots per supported device size/localization. The first one to three images matter most in search results when no app preview appears.
 
 - Use real app UI captures as the base image.
-- Make one benefit unmistakable per screenshot.
-- Keep overlay copy short enough to scan.
+- Use bright solid backgrounds that stand out in search results while preserving app-legibility.
+- Make one benefit unmistakable per screenshot and align it with high-intent ASO/Apple Ads search terms.
+- Keep overlay copy short enough to scan, with a sales-focused header and optional CTA such as "Free to download", "Track every kickoff", or "Start free trial".
 - Include at least one dark-mode screenshot if dark mode is a meaningful part of the experience.
 - If subscriptions or paid features are shown, mark them clearly with labels such as "Pro feature", "Included with Pro", or the subscription tier name.
 - Do not imply a paid feature is free. Do not hide terms, paywall state, or subscription context.
@@ -217,6 +232,20 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py list-apps --bundle-id
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py list-versions --app-id 1234567890 --platform IOS
 ```
 
+## Pricing And Availability
+
+For free apps, set the download price to $0 and make the app available in all countries before review:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-download \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-download \
+  --config appstore-submission.json --yes
+```
+
+The confirmed apply finds the base territory's free price point, writes an app price schedule at $0, enables availability for all current App Store territories, and sets new territories to become available automatically. Use this for free-download apps with paid subscriptions or IAP; subscription prices remain separate from the app download price.
+
 ## Subscriptions And IAP
 
 For subscriptions and paid features:
@@ -248,6 +277,7 @@ When the plugin MCP server is installed, prefer these tools over shell calls:
 - `asc_plan_version`
 - `asc_apply_version`
 - `asc_apply_metadata`
+- `asc_configure_free_download`
 - `asc_list_apps`
 - `asc_upload_build_api`
 - `asc_generate_screenshots`

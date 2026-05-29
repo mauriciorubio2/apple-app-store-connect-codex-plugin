@@ -16,7 +16,9 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Draft ASO and Apple Ads-aware app name, subtitle, description, keywords, promotional text, and what's-new copy.
 - Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
 - Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
+- Generate brighter, conversion-focused screenshot composites with salesy ASO/Apple Ads-aware headers, CTA pills, and paid-feature badges.
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
+- Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback and optional automatic versioning.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
@@ -109,6 +111,17 @@ Apply metadata after approval:
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py apply-metadata --config appstore-submission.json --yes
 ```
 
+Plan and apply free download pricing and all-country availability:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-download \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-download \
+  --config appstore-submission.json \
+  --yes
+```
+
 Plan the next App Store version and build number:
 
 ```bash
@@ -167,6 +180,8 @@ python3 -m pip install pillow
 python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
   --config plugins/apple-app-store-connect/assets/screenshot-template.json
 ```
+
+Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator.
 
 ## Privacy And Security
 
