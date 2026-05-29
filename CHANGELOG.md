@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.0] - 2026-05-29
+
+- Added `credential-setup` and `doctor --fix` helpers for secure local App Store Connect API key setup.
+- Added MCP access through `asc_credential_setup`, guarded so private key copies and env-file writes require confirmation.
+- Expanded `doctor` output with credential readiness, key-path existence, file mode, and recommended setup paths.
+- Documented the secure credentials workflow for team and individual App Store Connect API keys.
+
 ## [1.1.0] - 2026-05-29
 
 - Added automatic App Store version/build planning from Xcode project settings, Info.plists, git history, and optional Codex iteration counts.

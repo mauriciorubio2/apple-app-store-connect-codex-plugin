@@ -17,6 +17,7 @@ Use this skill when the user asks Codex to work on App Store Connect, TestFlight
   - `ASC_KEY_PATH`
   - `ASC_ISSUER_ID` for team keys
   - `ASC_KEY_TYPE=individual` for individual keys
+- If credentials are missing, run `doctor --fix` or `credential-setup` to copy a downloaded `.p8` key into `~/.appstoreconnect/private_keys/`, write a local ignored env file, and print the exact `source` command. Do not invent credentials or commit the env file.
 - Prefer the bundled scripts over hand-written API calls. They encode field names, dry runs, upload reservations, and checksum commits.
 - If a field is not exposed by Apple public APIs, prepare a precise checklist for the user rather than pretending it can be filled automatically.
 
@@ -35,8 +36,20 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py field-map
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py template
 ```
 
-3. Draft or update a submission JSON file using `assets/submission-template.json`.
-4. Plan versioning before upload or submission:
+3. If `doctor` reports missing credentials and the user has downloaded an API key, prepare local credentials without exposing the private key:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor --fix \
+  --key-id <KEY_ID> \
+  --issuer-id <ISSUER_ID> \
+  --import-key ~/Downloads/AuthKey_<KEY_ID>.p8 \
+  --write-env-file
+```
+
+Then source the returned env file and rerun `doctor`. For individual API keys, pass `--key-type individual` and omit `--issuer-id`.
+
+4. Draft or update a submission JSON file using `assets/submission-template.json`.
+5. Plan versioning before upload or submission:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-version \
@@ -46,7 +59,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-version \
 
 Use `--iteration-count <n>` when Codex or a build system has tracked the number of release-candidate iterations. This folds those iterations into the build number.
 
-5. Validate and plan before changes:
+6. Validate and plan before changes:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py validate --config appstore-submission.json
@@ -228,6 +241,7 @@ Prepare these for the user, but do not claim full API automation unless Apple ad
 When the plugin MCP server is installed, prefer these tools over shell calls:
 
 - `asc_doctor`
+- `asc_credential_setup`
 - `asc_field_map`
 - `asc_validate_submission_config`
 - `asc_plan_submission_config`

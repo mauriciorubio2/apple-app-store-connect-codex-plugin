@@ -133,6 +133,45 @@ class AscCliValidationTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(cli.main(["plan", "--config", file.name]), 0)
 
+    def test_credential_setup_imports_key_and_writes_env_file(self):
+        cli = load_cli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "AuthKey_TEST123.p8"
+            source.write_text("fake private key", encoding="utf-8")
+            key_dir = root / "private_keys"
+            env_file = root / "credentials.env"
+            args = type(
+                "Args",
+                (),
+                {
+                    "key_id": None,
+                    "issuer_id": "00000000-0000-0000-0000-000000000000",
+                    "key_type": "team",
+                    "key_path": None,
+                    "key_dir": str(key_dir),
+                    "import_key": str(source),
+                    "write_env_file": str(env_file),
+                    "verify": False,
+                },
+            )()
+            result = cli.credential_setup(args)
+            imported = key_dir / "AuthKey_TEST123.p8"
+            self.assertTrue(result["ok"])
+            self.assertTrue(imported.exists())
+            self.assertEqual(imported.stat().st_mode & 0o777, 0o600)
+            self.assertIn("source ", result["shell"]["sourceCommand"])
+            self.assertIn("ASC_KEY_ID='TEST123'", env_file.read_text())
+
+    def test_doctor_fix_does_not_require_credentials_to_print_guidance(self):
+        cli = load_cli()
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            code = cli.main(["doctor", "--fix", "--key-id", "ABC123", "--key-path", "/tmp/AuthKey_ABC123.p8"])
+        payload = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertIn("ASC_ISSUER_ID", payload["missing"])
+        self.assertTrue(any("ASC_KEY_ID" in line for line in payload["shell"]["exports"]))
+
 
 if __name__ == "__main__":
     unittest.main()

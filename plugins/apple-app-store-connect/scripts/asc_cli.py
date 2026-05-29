@@ -31,6 +31,9 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = PLUGIN_ROOT / "assets"
 FIELD_MAP = ASSETS_DIR / "field-map.json"
 SUBMISSION_TEMPLATE = ASSETS_DIR / "submission-template.json"
+DEFAULT_ASC_DIR = Path.home() / ".appstoreconnect"
+DEFAULT_KEY_DIR = DEFAULT_ASC_DIR / "private_keys"
+DEFAULT_ENV_FILE = DEFAULT_ASC_DIR / "credentials.env"
 
 TEXT_LIMITS = {
     "name": (2, 30),
@@ -43,6 +46,7 @@ TEXT_LIMITS = {
 
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
+AUTH_KEY_RE = re.compile(r"^AuthKey_([A-Za-z0-9]+)\.p8$")
 VERSION_RE = re.compile(r"^\d+(?:\.\d+){0,2}$")
 FULL_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 SKIPPED_PROJECT_DIRS = {
@@ -66,6 +70,181 @@ def write_json(path: str | Path, value: Any) -> None:
     with Path(path).expanduser().open("w", encoding="utf-8") as file:
         json.dump(value, file, indent=2)
         file.write("\n")
+
+
+def shell_quote(value: str | Path) -> str:
+    text = str(value)
+    return "'" + text.replace("'", "'\"'\"'") + "'"
+
+
+def derive_key_id_from_path(path: str | Path | None) -> str | None:
+    if not path:
+        return None
+    match = AUTH_KEY_RE.match(Path(path).name)
+    return match.group(1) if match else None
+
+
+def default_key_path(key_id: str, key_dir: str | Path | None = None) -> Path:
+    directory = Path(key_dir).expanduser() if key_dir else DEFAULT_KEY_DIR
+    return directory / f"AuthKey_{key_id}.p8"
+
+
+def path_mode(path: Path | None) -> str | None:
+    if not path or not path.exists():
+        return None
+    return oct(path.stat().st_mode & 0o777)
+
+
+def credential_env_status() -> dict[str, Any]:
+    key_path_text = os.environ.get("ASC_KEY_PATH", "").strip()
+    key_path = Path(key_path_text).expanduser() if key_path_text else None
+    key_type = os.environ.get("ASC_KEY_TYPE", "team").strip().lower()
+    key_id_present = bool(os.environ.get("ASC_KEY_ID"))
+    issuer_present = bool(os.environ.get("ASC_ISSUER_ID"))
+    key_path_present = bool(key_path_text)
+    ready = (
+        key_id_present
+        and key_path_present
+        and bool(key_path and key_path.exists())
+        and key_type in {"team", "individual"}
+        and (key_type == "individual" or issuer_present)
+    )
+    return {
+        "ASC_KEY_ID": key_id_present,
+        "ASC_ISSUER_ID": issuer_present,
+        "ASC_KEY_PATH": key_path_present,
+        "ASC_KEY_TYPE": key_type,
+        "keyPathExists": bool(key_path and key_path.exists()),
+        "keyPathMode": path_mode(key_path),
+        "ready": ready,
+    }
+
+
+def credential_export_lines(values: dict[str, str]) -> list[str]:
+    ordered = ["ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_KEY_PATH", "ASC_KEY_TYPE"]
+    return [f"export {key}={shell_quote(values[key])}" for key in ordered if values.get(key)]
+
+
+def write_env_file(path: str | Path, values: dict[str, str]) -> Path:
+    target = Path(path).expanduser()
+    parent_existed = target.parent.exists()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not parent_existed or target.parent == DEFAULT_ASC_DIR:
+        os.chmod(target.parent, 0o700)
+    lines = [
+        "# App Store Connect API credentials for local Codex/Xcode release workflows.",
+        "# Do not commit this file.",
+        *credential_export_lines(values),
+        "",
+    ]
+    target.write_text("\n".join(lines), encoding="utf-8")
+    os.chmod(target, 0o600)
+    return target
+
+
+def credential_setup(args: argparse.Namespace) -> dict[str, Any]:
+    key_type = (args.key_type or os.environ.get("ASC_KEY_TYPE", "team")).strip().lower()
+    if key_type not in {"team", "individual"}:
+        raise AppStoreConnectError("ASC_KEY_TYPE must be team or individual")
+
+    import_key = Path(args.import_key).expanduser() if args.import_key else None
+    explicit_key_path = Path(args.key_path).expanduser() if args.key_path else None
+    key_id = (
+        args.key_id
+        or os.environ.get("ASC_KEY_ID", "").strip()
+        or derive_key_id_from_path(import_key)
+        or derive_key_id_from_path(explicit_key_path)
+    )
+    issuer_id = args.issuer_id or os.environ.get("ASC_ISSUER_ID", "").strip() or None
+    key_path = explicit_key_path or (
+        Path(os.environ["ASC_KEY_PATH"]).expanduser() if os.environ.get("ASC_KEY_PATH") else None
+    )
+    key_dir = Path(args.key_dir).expanduser() if args.key_dir else DEFAULT_KEY_DIR
+    actions: list[dict[str, Any]] = []
+
+    if import_key:
+        if not import_key.exists():
+            raise AppStoreConnectError(f"Import key does not exist: {import_key}")
+        if not key_id:
+            raise AppStoreConnectError("Pass --key-id or use an AuthKey_<KEY_ID>.p8 filename.")
+        key_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(key_dir, 0o700)
+        destination = default_key_path(key_id, key_dir)
+        if import_key.resolve() != destination.resolve():
+            shutil.copy2(import_key, destination)
+            actions.append({"action": "copiedKey", "from": str(import_key), "to": str(destination)})
+        else:
+            actions.append({"action": "keyAlreadyInPlace", "path": str(destination)})
+        os.chmod(destination, 0o600)
+        key_path = destination
+    elif not key_path and key_id:
+        key_path = default_key_path(key_id, key_dir)
+
+    values: dict[str, str] = {}
+    if key_id:
+        values["ASC_KEY_ID"] = key_id
+    if issuer_id and key_type == "team":
+        values["ASC_ISSUER_ID"] = issuer_id
+    if key_path:
+        values["ASC_KEY_PATH"] = str(key_path)
+    values["ASC_KEY_TYPE"] = key_type
+
+    missing = []
+    if not key_id:
+        missing.append("ASC_KEY_ID")
+    if not key_path:
+        missing.append("ASC_KEY_PATH")
+    elif not key_path.exists():
+        missing.append("ASC_KEY_PATH_FILE")
+    if key_type == "team" and not issuer_id:
+        missing.append("ASC_ISSUER_ID")
+
+    written_env = None
+    if args.write_env_file:
+        if missing:
+            raise AppStoreConnectError("Cannot write credential env file; missing " + ", ".join(missing))
+        written_env = write_env_file(args.write_env_file, values)
+        actions.append({"action": "wroteEnvFile", "path": str(written_env), "mode": path_mode(written_env)})
+
+    verify: dict[str, Any] | None = None
+    if args.verify:
+        if missing:
+            verify = {"ok": False, "error": "Missing " + ", ".join(missing)}
+        elif not key_path or not key_path.exists():
+            verify = {"ok": False, "error": f"ASC_KEY_PATH does not exist: {key_path}"}
+        else:
+            try:
+                credentials = Credentials(key_id=key_id, issuer_id=issuer_id, key_path=key_path, key_type=key_type)
+                client = AppStoreConnectClient(credentials=credentials)
+                response = client.get("/v1/apps", {"limit": "1"})
+                verify = {"ok": True, "visibleApps": len(response.get("data", []))}
+            except Exception as exc:
+                verify = {"ok": False, "error": str(exc)}
+
+    source_command = f"source {shell_quote(written_env)}" if written_env else None
+    return {
+        "ok": not missing and (verify is None or bool(verify.get("ok"))),
+        "missing": missing,
+        "actions": actions,
+        "credentials": {
+            "ASC_KEY_ID": bool(key_id),
+            "ASC_ISSUER_ID": bool(issuer_id),
+            "ASC_KEY_PATH": bool(key_path),
+            "ASC_KEY_TYPE": key_type,
+            "keyPath": str(key_path) if key_path else None,
+            "keyPathExists": bool(key_path and key_path.exists()),
+            "keyPathMode": path_mode(key_path),
+            "envFile": str(written_env) if written_env else None,
+        },
+        "shell": {"exports": credential_export_lines(values), "sourceCommand": source_command},
+        "verify": verify,
+        "nextSteps": [
+            "Create an App Store Connect API key in Users and Access > Integrations.",
+            "Download the AuthKey_<KEY_ID>.p8 file once and keep it outside git.",
+            "Run credential-setup with --import-key and --write-env-file, then source the env file.",
+            "Run doctor again to confirm credentials are ready.",
+        ],
+    }
 
 
 def as_list(value: Any) -> list[Any]:
@@ -1152,11 +1331,14 @@ def doctor() -> dict[str, Any]:
         "xcrun": bool(shutil.which("xcrun")),
         "iTMSTransporter": bool(shutil.which("iTMSTransporter")),
         "pillow": False,
-        "credentials": {
-            "ASC_KEY_ID": bool(os.environ.get("ASC_KEY_ID")),
-            "ASC_ISSUER_ID": bool(os.environ.get("ASC_ISSUER_ID")),
-            "ASC_KEY_PATH": bool(os.environ.get("ASC_KEY_PATH")),
-            "ASC_KEY_TYPE": os.environ.get("ASC_KEY_TYPE", "team"),
+        "credentials": credential_env_status(),
+        "credentialSetup": {
+            "recommendedKeyDirectory": str(DEFAULT_KEY_DIR),
+            "recommendedEnvFile": str(DEFAULT_ENV_FILE),
+            "command": (
+                "doctor --fix --key-id <KEY_ID> --issuer-id <ISSUER_ID> "
+                "--import-key ~/Downloads/AuthKey_<KEY_ID>.p8 --write-env-file"
+            ),
         },
     }
     try:
@@ -1187,11 +1369,31 @@ def add_versioning_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-git", action="store_true", help="Do not use git commit history for iteration count.")
 
 
+def add_credential_setup_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--key-id", help="App Store Connect API key ID.")
+    parser.add_argument("--issuer-id", help="Issuer ID for team API keys.")
+    parser.add_argument("--key-type", choices=["team", "individual"], default=None, help="API key type.")
+    parser.add_argument("--key-path", help="Existing private key path to reference in exports.")
+    parser.add_argument("--key-dir", help="Directory for imported AuthKey_<KEY_ID>.p8 files.")
+    parser.add_argument("--import-key", help="Copy a downloaded AuthKey_<KEY_ID>.p8 into the local private key directory.")
+    parser.add_argument(
+        "--write-env-file",
+        nargs="?",
+        const=str(DEFAULT_ENV_FILE),
+        help="Write export lines to a local env file. Defaults to ~/.appstoreconnect/credentials.env.",
+    )
+    parser.add_argument("--verify", action="store_true", help="Make a read-only API request to verify credentials.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("doctor")
+    doctor_parser = sub.add_parser("doctor")
+    doctor_parser.add_argument("--fix", action="store_true", help="Prepare secure local credential exports.")
+    add_credential_setup_arguments(doctor_parser)
+    setup = sub.add_parser("credential-setup", help="Prepare local App Store Connect credential exports.")
+    add_credential_setup_arguments(setup)
     sub.add_parser("field-map")
     sub.add_parser("template")
 
@@ -1263,7 +1465,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "doctor":
-            print_json(doctor())
+            print_json(credential_setup(args) if args.fix else doctor())
+        elif args.command == "credential-setup":
+            print_json(credential_setup(args))
         elif args.command == "field-map":
             print_json(load_json(FIELD_MAP))
         elif args.command == "template":

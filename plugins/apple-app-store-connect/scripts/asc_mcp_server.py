@@ -22,6 +22,24 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "asc_credential_setup",
+        "description": "Prepare secure local App Store Connect credential exports, optionally copying a .p8 key and writing an ignored env file. Requires confirm=true for file writes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "keyId": {"type": "string"},
+                "issuerId": {"type": "string"},
+                "keyType": {"type": "string", "enum": ["team", "individual"], "default": "team"},
+                "keyPath": {"type": "string"},
+                "keyDir": {"type": "string"},
+                "importKeyPath": {"type": "string"},
+                "writeEnvFile": {"type": "string"},
+                "verify": {"type": "boolean", "default": False},
+                "confirm": {"type": "boolean", "default": False},
+            },
+        },
+    },
+    {
         "name": "asc_field_map",
         "description": "Return the researched App Store Connect field map and automation coverage.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -186,6 +204,29 @@ def run_command(args: list[str]) -> str:
 def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if name == "asc_doctor":
         text = run_command(["python3", str(CLI), "doctor"])
+    elif name == "asc_credential_setup":
+        command = ["python3", str(CLI), "credential-setup"]
+        if arguments.get("keyId"):
+            command += ["--key-id", arguments["keyId"]]
+        if arguments.get("issuerId"):
+            command += ["--issuer-id", arguments["issuerId"]]
+        if arguments.get("keyType"):
+            command += ["--key-type", arguments["keyType"]]
+        if arguments.get("keyPath"):
+            command += ["--key-path", arguments["keyPath"]]
+        if arguments.get("keyDir"):
+            command += ["--key-dir", arguments["keyDir"]]
+        if arguments.get("importKeyPath"):
+            if not arguments.get("confirm"):
+                raise RuntimeError("confirm=true is required before copying a private key file.")
+            command += ["--import-key", arguments["importKeyPath"]]
+        if arguments.get("writeEnvFile"):
+            if not arguments.get("confirm"):
+                raise RuntimeError("confirm=true is required before writing a credential env file.")
+            command += ["--write-env-file", arguments["writeEnvFile"]]
+        if arguments.get("verify"):
+            command.append("--verify")
+        text = run_command(command)
     elif name == "asc_field_map":
         text = run_command(["python3", str(CLI), "field-map"])
     elif name == "asc_validate_submission_config":
@@ -286,7 +327,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.1.0"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.2.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

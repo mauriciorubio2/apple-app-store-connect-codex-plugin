@@ -42,6 +42,31 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 
 Create an App Store Connect API key in App Store Connect, download the `.p8` private key once, and keep it outside the repository.
 
+The helper below copies the downloaded key into `~/.appstoreconnect/private_keys/`, locks file permissions, and can write a local env file that is safe to source but must never be committed:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py credential-setup \
+  --key-id ABC123DEFG \
+  --issuer-id 00000000-0000-0000-0000-000000000000 \
+  --import-key ~/Downloads/AuthKey_ABC123DEFG.p8 \
+  --write-env-file
+
+source ~/.appstoreconnect/credentials.env
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor
+```
+
+`doctor --fix` is an alias for the same setup flow:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor --fix \
+  --key-id ABC123DEFG \
+  --issuer-id 00000000-0000-0000-0000-000000000000 \
+  --import-key ~/Downloads/AuthKey_ABC123DEFG.p8 \
+  --write-env-file
+```
+
+To only print shell exports without writing a file, omit `--write-env-file`.
+
 ```bash
 export ASC_KEY_ID="ABC123DEFG"
 export ASC_ISSUER_ID="00000000-0000-0000-0000-000000000000"
