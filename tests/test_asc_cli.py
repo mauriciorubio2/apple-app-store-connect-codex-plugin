@@ -99,6 +99,47 @@ class AscCliValidationTests(unittest.TestCase):
             any("Terms of Use or EULA URL" in issue["message"] for issue in result["issues"] if issue["severity"] == "error")
         )
 
+    def test_ip_review_warns_when_independent_app_disclaimers_are_missing(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "appInfoLocalizations": [
+                {"locale": "en-US", "name": "Example Product", "privacyPolicyUrl": "https://example.com/privacy"}
+            ],
+            "versionLocalizations": [
+                {
+                    "locale": "en-US",
+                    "description": "A companion guide for a popular event.",
+                    "keywords": "guide,event",
+                    "supportUrl": "https://example.com/support",
+                }
+            ],
+            "reviewDetails": {
+                "contactFirstName": "Alex",
+                "contactLastName": "Example",
+                "contactPhone": "+15550100",
+                "contactEmail": "review@example.com",
+                "notes": "No account required.",
+            },
+            "ipReview": {
+                "usesThirdPartyIP": True,
+                "hasWrittenAuthorization": False,
+                "isIndependentReferenceOrFanApp": True,
+                "noAffiliationDisclaimerInDescription": False,
+                "noAffiliationDisclaimerInReviewNotes": False,
+                "checkedBinaryAndMetadataForOfficialMarks": False,
+                "newBuildUploadedForBinaryAssetChanges": False,
+            },
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertTrue(result["ok"])
+        self.assertIn("ipReview.hasWrittenAuthorization", fields)
+        self.assertIn("ipReview.noAffiliationDisclaimerInDescription", fields)
+        self.assertIn("ipReview.noAffiliationDisclaimerInReviewNotes", fields)
+        self.assertIn("ipReview.checkedBinaryAndMetadataForOfficialMarks", fields)
+        self.assertIn("ipReview.newBuildUploadedForBinaryAssetChanges", fields)
+
     def test_plan_does_not_require_credentials(self):
         cli = load_cli()
         config = {

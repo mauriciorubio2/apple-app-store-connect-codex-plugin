@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.5] - 2026-05-31
+
+- Added a reusable third-party IP safety checklist for App Store releases, covering app icons, screenshots, metadata, generated artwork, official marks, and independent reference/fan app disclaimers.
+- Added an optional `ipReview` submission-config block plus validation warnings for missing authorization, missing no-affiliation disclaimers, incomplete official-mark checks, and binary asset changes that still need a new build.
+- Expanded reviewer-note guidance so IP-remediation notes stay concise, factual, and need-to-know.
+
 ## [1.3.4] - 2026-05-31
 
 - Added App Review IP guidance for independent fan/reference apps: front-load no-affiliation disclaimers, avoid unlicensed official marks/artwork, and upload a new build when binary assets change.

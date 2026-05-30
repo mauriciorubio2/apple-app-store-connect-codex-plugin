@@ -882,6 +882,7 @@ def configure_free_download(args: argparse.Namespace, client: AppStoreConnectCli
 def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     subscriptions = as_list(config.get("subscriptions"))
+    version_localizations = as_list(config.get("versionLocalizations"))
 
     app = config.get("app", {})
     platform = app.get("platform", "IOS")
@@ -926,7 +927,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
-    for loc in as_list(config.get("versionLocalizations")):
+    for loc in version_localizations:
         prefix = f"versionLocalizations[{loc.get('locale', 'unknown')}]"
         for field in ("description", "promotionalText", "whatsNew"):
             add_length_issue(issues, prefix + "." + field, loc.get(field), *TEXT_LIMITS[field])
@@ -1037,6 +1038,57 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                     "message": "Subscription apps should clearly mark paid or Pro features in screenshot messaging.",
                 }
             )
+
+    ip_review = config.get("ipReview") or {}
+    if ip_review:
+        if ip_review.get("usesThirdPartyIP") and not ip_review.get("hasWrittenAuthorization"):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "ipReview.hasWrittenAuthorization",
+                    "message": "If third-party IP appears in the app, screenshots, or metadata, provide written authorization or remove/replace it before App Review.",
+                }
+            )
+        if not ip_review.get("checkedBinaryAndMetadataForOfficialMarks"):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "ipReview.checkedBinaryAndMetadataForOfficialMarks",
+                    "message": "Review the app icon, bundled assets, screenshots, copy, keywords, and review notes for unlicensed logos, marks, characters, celebrities, event marks, media, or confusingly similar generated artwork.",
+                }
+            )
+        if not ip_review.get("newBuildUploadedForBinaryAssetChanges"):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "ipReview.newBuildUploadedForBinaryAssetChanges",
+                    "message": "When icon, asset catalog, bundled media, or binary content changes after App Review feedback, upload and select a new build; metadata-only updates are not enough.",
+                }
+            )
+        if ip_review.get("isIndependentReferenceOrFanApp"):
+            descriptions = [str(loc.get("description") or "").lower() for loc in version_localizations]
+            notes = str(review.get("notes") or "").lower()
+            has_description_disclaimer = any(
+                ("not affiliated" in description or "independent" in description)
+                for description in descriptions
+            )
+            has_notes_disclaimer = "not affiliated" in notes or "independent" in notes
+            if not (ip_review.get("noAffiliationDisclaimerInDescription") and has_description_disclaimer):
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "field": "ipReview.noAffiliationDisclaimerInDescription",
+                        "message": "Independent reference or fan apps should put a clear no-affiliation disclaimer in the first paragraph of the App Store description.",
+                    }
+                )
+            if not (ip_review.get("noAffiliationDisclaimerInReviewNotes") and has_notes_disclaimer):
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "field": "ipReview.noAffiliationDisclaimerInReviewNotes",
+                        "message": "Independent reference or fan apps should briefly explain their independence and IP cleanup in App Review notes.",
+                    }
+                )
 
     errors = [issue for issue in issues if issue["severity"] == "error"]
     warnings = [issue for issue in issues if issue["severity"] == "warning"]

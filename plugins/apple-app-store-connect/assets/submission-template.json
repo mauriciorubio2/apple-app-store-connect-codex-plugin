@@ -38,6 +38,15 @@
     "availability": "allCountries",
     "availableInNewTerritories": true
   },
+  "ipReview": {
+    "usesThirdPartyIP": false,
+    "hasWrittenAuthorization": false,
+    "isIndependentReferenceOrFanApp": false,
+    "noAffiliationDisclaimerInDescription": false,
+    "noAffiliationDisclaimerInReviewNotes": false,
+    "checkedBinaryAndMetadataForOfficialMarks": true,
+    "newBuildUploadedForBinaryAssetChanges": true
+  },
   "versionLocalizations": [
     {
       "id": "version-localization-id",

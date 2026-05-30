@@ -23,7 +23,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback and optional automatic versioning.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
 - Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
-- Prepare IP-sensitive resubmissions by checking unlicensed third-party marks/artwork, front-loading no-affiliation disclaimers, and reminding builders to upload a new binary for asset changes.
+- Prepare IP-sensitive releases and resubmissions with a generic third-party IP checklist, optional `ipReview` validation warnings, no-affiliation disclaimer guidance, and new-binary reminders for asset changes.
 - Create dry-run plans so a human can approve exactly what will change.
 
 ## Apple Documentation Used

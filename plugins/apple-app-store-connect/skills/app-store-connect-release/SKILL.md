@@ -93,6 +93,18 @@ Use Apple's product page recommendations:
 - Promotional text: 170 characters maximum. Use for current launches, offers, or updates; do not use it for search ranking keywords.
 - What's New: describe user-visible changes plainly. Avoid empty "bug fixes" copy when the release has meaningful improvements.
 
+## Third-Party IP Safety
+
+Run this checklist for any app that references real brands, organizations, people, characters, events, teams, leagues, venues, books, films, music, games, public figures, media properties, or third-party datasets.
+
+- Identify every place third-party IP could appear: app name, subtitle, keywords, description, promotional text, screenshots, app icon, in-app art, generated images, logos, crests, product shapes, player/celebrity photos, team or event marks, bundled media, and App Review notes.
+- If the user has written authorization, record only the need-to-know App Review note and attachment checklist. Do not commit licenses, contact details, or confidential agreements unless the user explicitly asks.
+- If there is no authorization, remove or replace official marks, confusingly similar generated art, copyrighted images, player/celebrity likenesses, copied UI/art, and trademark-heavy keyword targeting. Prefer original generic artwork, neutral descriptors, country/region names, and factual editorial references.
+- For independent reference/fan/companion apps, put a clear no-affiliation disclaimer in the first paragraph of the App Store description and add a concise App Review note explaining that the app uses original/generic artwork and is not affiliated with third parties.
+- Keep reviewer notes brief and need-to-know: say what changed and how reviewers can verify it, but avoid unnecessary internal implementation details, legal speculation, or admissions beyond the facts.
+- If any bundled binary asset changed after App Review feedback, increment the build number, archive/upload a new binary, wait for processing, and update `version.buildId`. Metadata-only fixes do not change app icons or bundled assets.
+- In `appstore-submission.json`, include an `ipReview` block for IP-sensitive apps so validation warns when authorization, disclaimer, binary-asset, or official-mark checks are incomplete.
+
 When optimizing for Apple Ads:
 
 - Align copy and screenshots to a specific search intent or ad group.
