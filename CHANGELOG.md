@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.7] - 2026-05-31
+
+- Added a no-text app icon rule so generated icon options avoid words, initials, numbers, pseudo-text, labels, slogans, and watermarks by default.
+- Linked the app icon option workflow to the standalone `ios-app-icon-design` Codex skill so release icon guidance and standalone icon-design guidance stay in sync.
+
 ## [1.3.6] - 2026-05-31
 
 - Added a reusable iOS app icon option workflow so creators get five visually distinct, App Store-safe icon directions before bundled icon assets are replaced.

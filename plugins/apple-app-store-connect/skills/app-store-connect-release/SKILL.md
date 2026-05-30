@@ -111,10 +111,13 @@ For iOS apps, help the creator choose an App Store-safe icon before the final re
 
 1. Generate or sketch five visually distinct numbered app icon options before replacing the project icon. Use `assets/app-icon-options-recipe.json` as the default creative brief.
 2. Make the five options different in style, not just color. Include a premium realistic direction, a minimal symbol direction, an environment/energy direction, a collectible/foil direction, and a friendly utility direction unless the user gives a stronger brief.
-3. For IP-sensitive apps, keep all options original and generic. Do not include unlicensed official logos, crests, event marks, product shapes, trophy silhouettes, player or celebrity likenesses, or confusingly similar generated artwork.
-4. Show the contact sheet to the creator and wait for their explicit choice. Do not upload a new build merely because options were generated.
-5. After selection, generate the chosen direction as a standalone 1024x1024 PNG with no text, no watermark, and no baked rounded corners unless the creator explicitly asks otherwise.
-6. Inspect the standalone icon at full size and small size, copy it into the app icon asset catalog, increment the build number, archive/upload a new build, and update the selected build in App Store Connect. App icon changes are binary changes.
+3. Keep icons symbol-only by default: no text, initials, acronyms, numbers, pseudo-text, labels, slogans, or watermarks. Icons with text usually look redundant, cluttered, and illegible at App Store and Home Screen sizes. Only include a real brand mark if the creator explicitly asks and owns the rights.
+4. For IP-sensitive apps, keep all options original and generic. Do not include unlicensed official logos, crests, event marks, product shapes, trophy silhouettes, player or celebrity likenesses, or confusingly similar generated artwork.
+5. Show the contact sheet to the creator and wait for their explicit choice. Do not upload a new build merely because options were generated.
+6. After selection, generate the chosen direction as a standalone 1024x1024 PNG with no text, no watermark, and no baked rounded corners unless the creator explicitly asks otherwise.
+7. Inspect the standalone icon at full size and small size, copy it into the app icon asset catalog, increment the build number, archive/upload a new build, and update the selected build in App Store Connect. App icon changes are binary changes.
+
+This workflow mirrors the standalone personal skill `ios-app-icon-design`. If you change app icon rules here, update that skill as well so release work and standalone icon design stay in sync.
 
 When optimizing for Apple Ads:
 

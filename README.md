@@ -190,9 +190,11 @@ Screenshot copy should lead with one high-intent user benefit per image, include
 
 ## App Icon Options
 
-When preparing an iOS app release, use `plugins/apple-app-store-connect/assets/app-icon-options-recipe.json` to produce five numbered icon directions for the creator to choose from before changing the project icon. The options should be meaningfully different in style and should avoid unlicensed third-party IP, official marks, confusingly similar product shapes, player or celebrity likenesses, and copied artwork.
+When preparing an iOS app release, use `plugins/apple-app-store-connect/assets/app-icon-options-recipe.json` to produce five numbered icon directions for the creator to choose from before changing the project icon. The options should be meaningfully different in style, symbol-only by default, and avoid text, initials, numbers, pseudo-text, labels, slogans, watermarks, unlicensed third-party IP, official marks, confusingly similar product shapes, player or celebrity likenesses, and copied artwork.
 
 After the creator picks an option, generate it as a standalone 1024x1024 PNG, inspect it at small sizes, copy it into the app icon asset catalog, increment the build number, and upload/select a fresh build because icon changes are bundled binary changes.
+
+The app icon release workflow mirrors the standalone personal Codex skill `ios-app-icon-design`; keep the skill and this plugin recipe aligned when changing icon rules.
 
 ## Privacy And Security
 

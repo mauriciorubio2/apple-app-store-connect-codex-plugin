@@ -6,10 +6,16 @@
     "notes": [
       "Generate a contact sheet of five numbered options first.",
       "After the creator chooses one option, generate that option again as a standalone 1024x1024 icon.",
+      "Do not include text, initials, numbers, pseudo-text, labels, slogans, or watermarks in app icons unless the creator explicitly asks for a real brand mark.",
       "Do not bake rounded corners into the final app icon; iOS applies the mask."
     ]
   },
+  "companionSkill": {
+    "name": "ios-app-icon-design",
+    "syncRule": "This recipe mirrors the standalone personal Codex skill. When updating icon rules here, update that skill too."
+  },
   "safetyChecklist": [
+    "No text, initials, numbers, pseudo-text, labels, slogans, or watermarks by default. Icons with text usually look redundant, cluttered, and illegible at small sizes.",
     "No official logos, crests, event marks, product shapes, characters, celebrity likenesses, player photos, or copyrighted artwork unless the creator provides authorization.",
     "Avoid confusingly similar generated artwork when the app references a real event, brand, organization, league, team, venue, or media property.",
     "Prefer original generic motifs, abstract marks, colors, and domain-relevant objects that are not protected source identifiers.",
@@ -22,7 +28,7 @@
     },
     {
       "name": "minimal-bold-symbol",
-      "direction": "A simple high-contrast abstract symbol or monogram on a strong solid or subtly textured background, readable at tiny sizes."
+      "direction": "A simple high-contrast abstract symbol on a strong solid or subtly textured background, readable at tiny sizes."
     },
     {
       "name": "environment-energy",
