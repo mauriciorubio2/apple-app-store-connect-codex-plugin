@@ -17,6 +17,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
 - Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
 - Generate brighter, conversion-focused screenshot composites with salesy ASO/Apple Ads-aware headers, CTA pills, and paid-feature badges.
+- Guide iOS app icon selection with five distinct, App Store-safe design options before replacing bundled icon assets.
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
@@ -186,6 +187,12 @@ python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
 ```
 
 Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and paywall or upgrade value.
+
+## App Icon Options
+
+When preparing an iOS app release, use `plugins/apple-app-store-connect/assets/app-icon-options-recipe.json` to produce five numbered icon directions for the creator to choose from before changing the project icon. The options should be meaningfully different in style and should avoid unlicensed third-party IP, official marks, confusingly similar product shapes, player or celebrity likenesses, and copied artwork.
+
+After the creator picks an option, generate it as a standalone 1024x1024 PNG, inspect it at small sizes, copy it into the app icon asset catalog, increment the build number, and upload/select a fresh build because icon changes are bundled binary changes.
 
 ## Privacy And Security
 

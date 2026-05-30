@@ -1,0 +1,40 @@
+{
+  "assetType": "ios-app-icon-options",
+  "output": {
+    "format": "png",
+    "size": "1024x1024",
+    "notes": [
+      "Generate a contact sheet of five numbered options first.",
+      "After the creator chooses one option, generate that option again as a standalone 1024x1024 icon.",
+      "Do not bake rounded corners into the final app icon; iOS applies the mask."
+    ]
+  },
+  "safetyChecklist": [
+    "No official logos, crests, event marks, product shapes, characters, celebrity likenesses, player photos, or copyrighted artwork unless the creator provides authorization.",
+    "Avoid confusingly similar generated artwork when the app references a real event, brand, organization, league, team, venue, or media property.",
+    "Prefer original generic motifs, abstract marks, colors, and domain-relevant objects that are not protected source identifiers.",
+    "Inspect the selected icon at small sizes before shipping and update App Review notes if replacing IP-sensitive art after rejection."
+  ],
+  "optionPrompts": [
+    {
+      "name": "premium-realistic-hero-object",
+      "direction": "A polished premium icon with one large generic domain object centered, surrounded by smaller generic background objects and dramatic lighting."
+    },
+    {
+      "name": "minimal-bold-symbol",
+      "direction": "A simple high-contrast abstract symbol or monogram on a strong solid or subtly textured background, readable at tiny sizes."
+    },
+    {
+      "name": "environment-energy",
+      "direction": "An atmospheric icon built from lights, motion, particles, or stage/stadium energy, with a clear original focal shape."
+    },
+    {
+      "name": "collector-premium",
+      "direction": "A foil, holographic, trading-card, or collectible-inspired treatment with original geometry and no third-party marks."
+    },
+    {
+      "name": "friendly-utility",
+      "direction": "A bright, approachable utility-style icon using rounded original shapes, clear contrast, and a practical app-tool feeling."
+    }
+  ]
+}

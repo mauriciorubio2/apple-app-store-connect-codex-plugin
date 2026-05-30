@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.6] - 2026-05-31
+
+- Added a reusable iOS app icon option workflow so creators get five visually distinct, App Store-safe icon directions before bundled icon assets are replaced.
+- Added `app-icon-options-recipe.json` with default creative directions and third-party IP safety checks for icon exploration.
+- Documented that selected app icon changes require a standalone 1024x1024 asset, small-size inspection, a build-number increment, and a newly uploaded/selected build.
+
 ## [1.3.5] - 2026-05-31
 
 - Added a reusable third-party IP safety checklist for App Store releases, covering app icons, screenshots, metadata, generated artwork, official marks, and independent reference/fan app disclaimers.
