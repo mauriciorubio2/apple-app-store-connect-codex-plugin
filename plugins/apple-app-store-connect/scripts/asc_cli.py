@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import plistlib
@@ -790,10 +791,18 @@ def set_all_territories_available(
         }
 
     availability_id = availability.get("data", {}).get("id") or app_id
-    client.patch(
-        f"/v2/appAvailabilities/{availability_id}",
-        json_api_body("appAvailabilities", {"availableInNewTerritories": True}, resource_id=availability_id),
-    )
+    try:
+        client.patch(
+            f"/v2/appAvailabilities/{availability_id}",
+            json_api_body("appAvailabilities", {"availableInNewTerritories": True}, resource_id=availability_id),
+        )
+        available_in_new_territories = True
+    except AppStoreConnectError as exc:
+        if "appAvailabilities' does not allow 'UPDATE'" not in str(exc):
+            raise
+        available_in_new_territories = availability.get("data", {}).get("attributes", {}).get(
+            "availableInNewTerritories"
+        )
     current = client.get(
         f"/v2/appAvailabilities/{availability_id}/territoryAvailabilities",
         {"limit": "200"},
@@ -810,7 +819,7 @@ def set_all_territories_available(
     return {
         "mode": "updated",
         "availabilityId": availability_id,
-        "availableInNewTerritories": True,
+        "availableInNewTerritories": available_in_new_territories,
         "territoryCount": len(current.get("data", [])),
         "patchedTerritoryCount": len(patched),
     }
@@ -1521,7 +1530,10 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
             {
                 "uploaded": True,
                 "sourceFileChecksums": {
-                    "file": {"hash": file_hash(file_path, "sha_256"), "algorithm": "SHA_256"}
+                    "file": {
+                        "hash": base64.b64encode(bytes.fromhex(file_hash(file_path, "sha_256"))).decode("ascii"),
+                        "algorithm": "SHA_256",
+                    }
                 },
             },
             resource_id=file_id,

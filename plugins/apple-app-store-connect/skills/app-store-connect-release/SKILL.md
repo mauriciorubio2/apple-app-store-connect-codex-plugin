@@ -88,6 +88,7 @@ Use Apple's product page recommendations:
 - Subtitle: 30 characters maximum. Describe the core user outcome, not a vague slogan.
 - Description: lead with the strongest benefit in the first sentence because it is visible before expansion. Use one concise paragraph followed by a short feature list. Avoid keyword stuffing and avoid specific prices.
 - Subscription apps: append a `SUBSCRIPTION INFORMATION:` section to the App Store description before review. It must include the Pro/subscription value, trial and plan cadence summary, auto-renewal/cancellation disclosure, a functional Privacy Policy URL, and a functional Terms of Use/EULA URL. Apple can block review if the Terms of Use link is missing from metadata.
+- Third-party/IP-sensitive apps: do not use unlicensed official logos, crests, trophies, event marks, player photos, broadcaster marks, or confusingly similar generated artwork in the app binary, app icon, screenshots, or metadata. If the app is an independent fan/reference app, put a clear no-affiliation disclaimer in the first paragraph of the description, repeat it in App Review notes, avoid trademark-heavy keywords, and use original generic artwork unless the user provides documentary authorization.
 - Keywords: 100 characters maximum. Use relevant comma-separated terms with no spaces after commas. Avoid duplicates, plural variants when singular is present, category names, competitor names, trademarks, celebrity names, irrelevant terms, and objectionable terms.
 - Promotional text: 170 characters maximum. Use for current launches, offers, or updates; do not use it for search ranking keywords.
 - What's New: describe user-visible changes plainly. Avoid empty "bug fixes" copy when the release has meaningful improvements.
@@ -162,6 +163,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-screenshots \
 ## Build Uploads
 
 The plugin supports Apple's Build Uploads API for `.ipa` and `.pkg` files and also includes a Transporter fallback.
+
+When App Review rejects artwork or bundled assets, increment the build number, archive a new binary, upload the new build, and update `version.buildId`. Metadata-only changes are not enough for icon, asset catalog, bundled screenshot, or binary content changes.
 
 ## Versioning
 

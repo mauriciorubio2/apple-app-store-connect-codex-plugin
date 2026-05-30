@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.4] - 2026-05-31
+
+- Added App Review IP guidance for independent fan/reference apps: front-load no-affiliation disclaimers, avoid unlicensed official marks/artwork, and upload a new build when binary assets change.
+- Updated the free-download helper to tolerate App Store Connect's current read-only `appAvailabilities` update behavior while still verifying all territories.
+- Adjusted Build Uploads API checksum commits to send the SHA-256 checksum in the encoded form Apple expects.
+
 ## [1.3.3] - 2026-05-30
 
 - Tightened subscription metadata validation so Terms of Use/EULA and Privacy Policy URLs must be labeled in the App Store description.
