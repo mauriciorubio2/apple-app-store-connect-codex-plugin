@@ -318,6 +318,49 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertEqual(offer_body["data"]["type"], "subscriptionIntroductoryOffers")
         self.assertEqual(offer_body["data"]["attributes"]["offerMode"], "FREE_TRIAL")
 
+    def test_revenuecat_access_probe_flags_revoked_token(self):
+        cli = load_cli()
+        result = cli.revenuecat_access_probe(
+            "Error calling list-projects: authorization_error access token has been revoked"
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], "revoked_or_unauthorized")
+        self.assertIn("reconnect", result["reauthentication"].lower())
+
+    def test_revenuecat_access_probe_accepts_project_list(self):
+        cli = load_cli()
+        result = cli.revenuecat_access_probe([{"id": "proj123", "name": "Example"}])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "valid")
+        self.assertEqual(result["visibleProjects"], 1)
+
+    def test_preflight_access_prompts_for_reauthorization_when_blocked(self):
+        cli = load_cli()
+        result = cli.preflight_access(
+            verify_apple=False,
+            revenuecat_probe_payload="HTTP status: 403 authorization_error access token has been revoked",
+        )
+        services = {item["service"] for item in result["reauthorizationPrompts"]}
+        self.assertFalse(result["ok"])
+        self.assertIn("App Store Connect", services)
+        self.assertIn("RevenueCat", services)
+
+    def test_main_preflight_access_parses_revenuecat_probe_json(self):
+        cli = load_cli()
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            code = cli.main(
+                [
+                    "preflight-access",
+                    "--skip-apple",
+                    "--revenuecat-probe-json",
+                    '[{"id":"proj123","name":"Example"}]',
+                ]
+            )
+        payload = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["revenueCat"]["ok"])
+        self.assertFalse(payload["ok"])
+
     def test_growth_strategy_flags_bad_review_trigger(self):
         cli = load_cli()
         config = {

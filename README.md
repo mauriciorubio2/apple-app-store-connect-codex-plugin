@@ -14,6 +14,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 ## What It Can Do
 
 - Draft ASO and Apple Ads-aware app name, subtitle, description, keywords, promotional text, and what's-new copy.
+- Run a release preflight that verifies App Store Connect API access and requires a RevenueCat MCP probe before subscription automation begins.
 - Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
 - Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
 - Generate brighter, conversion-focused screenshot composites with salesy ASO/Apple Ads-aware headers, CTA pills, and paid-feature badges.
@@ -49,6 +50,9 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 - [Set up introductory offers for auto-renewable subscriptions](https://developer.apple.com/help/app-store-connect/manage-subscriptions/set-up-introductory-offers-for-auto-renewable-subscriptions/)
 - [Product page optimization](https://developer.apple.com/app-store/product-page-optimization/)
 - [Requesting App Store reviews](https://developer.apple.com/documentation/storekit/requesting_app_store_reviews/)
+- [RevenueCat MCP Server](https://www.revenuecat.com/docs/tools/mcp)
+- [RevenueCat MCP setup and authentication](https://www.revenuecat.com/docs/tools/mcp/setup)
+- [RevenueCat API keys and OAuth tokens](https://www.revenuecat.com/docs/projects/authentication)
 
 ## Credentials
 
@@ -101,6 +105,14 @@ Run local checks:
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor
 ```
+
+Before App Store Connect or RevenueCat subscription automation, verify access:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py preflight-access
+```
+
+This verifies App Store Connect with a read-only `/v1/apps` API request. RevenueCat OAuth/API-token state lives inside the RevenueCat MCP server, so Codex must also call the RevenueCat MCP `list_projects` probe with `limit=1`. If either check fails or reports a revoked/unauthorized token, the plugin tells Codex to stop and prompt you to re-authorize that service before continuing.
 
 Start a submission config:
 
@@ -215,7 +227,9 @@ The plugin can infer the next values from Xcode `MARKETING_VERSION`, `CURRENT_PR
 
 ## Subscription Access, Onboarding, And Reviews
 
-The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, monthly plus annual options, a first-time trial where appropriate, a flexible Free + Pro access model, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
+The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, monthly plus annual options, RevenueCat project/offering/entitlement coordination, a first-time trial where appropriate, a flexible Free + Pro access model, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
+
+Run access preflight first. `accessPreflight` requires a live App Store Connect probe plus a RevenueCat MCP `list_projects` probe before Codex applies metadata, pricing, products, offerings, screenshots, build uploads, or review submission changes. On failure, Codex should prompt for App Store Connect API-key setup or RevenueCat OAuth/API-key reauthorization, then retry the probe.
 
 By default, `freeProAccessModel` gives users a complete Free product experience with roughly 70-80% of useful functionality available before purchase. Pro should reserve the remaining high-intent 20-30%: unlimited usage, advanced alerts, widgets or live activities, deeper history/analytics, exports, premium personalization, themes, automations, or other power-user depth. The core loop should stay usable on Free so users get a real taste of the app.
 

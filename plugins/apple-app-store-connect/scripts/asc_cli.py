@@ -35,6 +35,14 @@ SUBMISSION_TEMPLATE = ASSETS_DIR / "submission-template.json"
 DEFAULT_ASC_DIR = Path.home() / ".appstoreconnect"
 DEFAULT_KEY_DIR = DEFAULT_ASC_DIR / "private_keys"
 DEFAULT_ENV_FILE = DEFAULT_ASC_DIR / "credentials.env"
+REVENUECAT_MCP_URL = "https://mcp.revenuecat.ai/mcp"
+REVENUECAT_AUTH_FAILURE_SIGNALS = [
+    "401 unauthorized",
+    "403 authorization_error",
+    "access token has been revoked",
+    "insufficient_scope",
+    "resource_missing for the selected project",
+]
 
 TEXT_LIMITS = {
     "name": (2, 30),
@@ -1343,6 +1351,87 @@ def validate_free_pro_access_model(config: dict[str, Any], issues: list[dict[str
         )
 
 
+def validate_access_preflight_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    subscriptions = as_list(config.get("subscriptions"))
+    revenuecat = config.get("revenueCatIntegration") or {}
+    needs_subscription_access = bool(subscriptions or config.get("subscriptionPricing") or revenuecat.get("enabled"))
+    preflight = config.get("accessPreflight") or {}
+    if not needs_subscription_access:
+        return
+    if not preflight:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "accessPreflight",
+                "message": "Run access preflight before subscription release automation so App Store Connect and RevenueCat credentials are verified before changes begin.",
+            }
+        )
+        return
+    if preflight.get("requiredBeforeAutomation") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "accessPreflight.requiredBeforeAutomation",
+                "message": "Keep access preflight required before applying App Store Connect or RevenueCat subscription changes.",
+            }
+        )
+    if preflight.get("onFailure") != "promptForReauthorization":
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "accessPreflight.onFailure",
+                "message": "When access preflight fails, Codex should prompt the user to re-authorize App Store Connect or RevenueCat before continuing.",
+            }
+        )
+    rc_preflight = preflight.get("revenueCat") or {}
+    if needs_subscription_access and rc_preflight.get("probeTool") != "mcp__RevenueCat.list_projects":
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "accessPreflight.revenueCat.probeTool",
+                "message": "Use the RevenueCat MCP list_projects probe to verify OAuth/API-token access before subscription setup.",
+            }
+        )
+
+
+def validate_revenuecat_integration(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    revenuecat = config.get("revenueCatIntegration") or {}
+    if not revenuecat or revenuecat.get("enabled") is False:
+        return
+    if revenuecat.get("requiresAuthenticatedMcp") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.requiresAuthenticatedMcp",
+                "message": "RevenueCat subscription setup should require an authenticated MCP/OAuth or valid API-token session before Codex creates products, entitlements, offerings, or paywalls.",
+            }
+        )
+    if not revenuecat.get("projectId"):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.projectId",
+                "message": "Add the RevenueCat project ID once the list_projects preflight succeeds so subscription setup targets the correct project.",
+            }
+        )
+    if not revenuecat.get("entitlementIdentifier"):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.entitlementIdentifier",
+                "message": "Define the RevenueCat entitlement identifier, usually pro, before configuring subscription products and offerings.",
+            }
+        )
+    if not revenuecat.get("offeringIdentifier"):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.offeringIdentifier",
+                "message": "Define the RevenueCat offering identifier, usually default, before configuring packages.",
+            }
+        )
+
+
 def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
     policy = config.get("reviewPromptPolicy") or {}
     if not policy:
@@ -1429,6 +1518,8 @@ def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str,
 def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     validate_subscription_pricing_strategy(config, issues)
+    validate_access_preflight_policy(config, issues)
+    validate_revenuecat_integration(config, issues)
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
@@ -1439,6 +1530,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
         "issues": issues,
         "freeProAccessModel": free_pro_access_summary(config),
         "recommendations": [
+            "Run access preflight first: App Store Connect must pass a read-only API probe and RevenueCat must pass the MCP list_projects probe before subscription automation.",
             "Keep the app download free when monetizing with subscriptions, then price subscription products separately.",
             "Default to a Free + Pro model where Free gives a complete 70-80% taste of useful functionality and Pro unlocks the remaining high-intent depth.",
             "Keep the app's core loop usable on Free; reserve Pro for unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization.",
@@ -1682,6 +1774,8 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
             )
 
     validate_subscription_pricing_strategy(config, issues)
+    validate_access_preflight_policy(config, issues)
+    validate_revenuecat_integration(config, issues)
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
@@ -1753,6 +1847,17 @@ def clean_attributes(data: dict[str, Any], allowed: set[str]) -> dict[str, Any]:
 
 def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
     actions: list[dict[str, Any]] = []
+    if config.get("accessPreflight", {}).get("requiredBeforeAutomation"):
+        actions.append(
+            {
+                "action": "PRECHECK",
+                "resource": "App Store Connect credentials / RevenueCat MCP",
+                "tool": "preflight-access",
+                "appStoreConnectProbe": "GET /v1/apps?limit=1",
+                "revenueCatProbe": "mcp__RevenueCat.list_projects limit=1",
+                "onFailure": config.get("accessPreflight", {}).get("onFailure", "promptForReauthorization"),
+            }
+        )
     app_info = config.get("appInfo", {})
     category_fields = [
         field
@@ -2320,6 +2425,12 @@ def doctor() -> dict[str, Any]:
                 "--import-key ~/Downloads/AuthKey_<KEY_ID>.p8 --write-env-file"
             ),
         },
+        "accessPreflight": {
+            "command": "preflight-access",
+            "appStoreConnectProbe": "GET /v1/apps?limit=1",
+            "revenueCatProbe": "mcp__RevenueCat.list_projects limit=1",
+            "onFailure": "promptForReauthorization",
+        },
     }
     try:
         import PIL  # type: ignore
@@ -2329,6 +2440,182 @@ def doctor() -> dict[str, Any]:
     except Exception:
         checks["pillow"] = False
     return checks
+
+
+def app_store_connect_access_probe() -> dict[str, Any]:
+    endpoint = "GET /v1/apps?limit=1"
+    credentials = credential_env_status()
+    if not credentials["ready"]:
+        return {
+            "ok": False,
+            "status": "missing_or_incomplete_credentials",
+            "endpoint": endpoint,
+            "credentials": credentials,
+            "message": "App Store Connect credentials are not ready. Run credential-setup or doctor --fix, then rerun preflight-access.",
+        }
+    try:
+        client = AppStoreConnectClient()
+        response = client.get("/v1/apps", {"limit": "1"})
+        return {
+            "ok": True,
+            "status": "valid",
+            "endpoint": endpoint,
+            "apiBase": client.base_url,
+            "visibleApps": len(response.get("data", [])),
+            "message": "App Store Connect API credentials generated a valid JWT and completed a read-only request.",
+        }
+    except Exception as exc:
+        message = str(exc)
+        lowered = message.lower()
+        status = "error"
+        if any(marker in lowered for marker in ("401", "403", "unauthorized", "not authorized", "revoked", "forbidden")):
+            status = "revoked_or_unauthorized"
+        elif "asc_" in lowered or "key_path" in lowered:
+            status = "missing_or_incomplete_credentials"
+        return {
+            "ok": False,
+            "status": status,
+            "endpoint": endpoint,
+            "credentials": credentials,
+            "error": message,
+            "message": "App Store Connect access could not be verified with a read-only API request.",
+        }
+
+
+def revenuecat_probe_payload_from_text(value: str | None) -> Any:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+
+
+def revenuecat_probe_text(payload: Any) -> str:
+    if payload is None:
+        return ""
+    if isinstance(payload, str):
+        return payload
+    return json.dumps(payload, sort_keys=True)
+
+
+def revenuecat_access_probe(payload: Any = None) -> dict[str, Any]:
+    if payload is None:
+        return {
+            "ok": False,
+            "status": "external_probe_required",
+            "mcpServer": "RevenueCat",
+            "mcpUrl": REVENUECAT_MCP_URL,
+            "probe": {"tool": "mcp__RevenueCat.list_projects", "arguments": {"limit": 1}},
+            "message": "RevenueCat OAuth/API-token state is owned by the RevenueCat MCP server. Codex must call list_projects before App Store Connect subscription work continues.",
+            "reauthentication": "Reconnect the RevenueCat plugin/OAuth session, or configure a valid RevenueCat API v2 secret key for the MCP server, then retry.",
+            "authFailureSignals": REVENUECAT_AUTH_FAILURE_SIGNALS,
+        }
+
+    text = revenuecat_probe_text(payload)
+    lowered = text.lower()
+    if any(signal in lowered for signal in REVENUECAT_AUTH_FAILURE_SIGNALS) or "authorization_error" in lowered:
+        status = "revoked_or_unauthorized"
+        if "insufficient_scope" in lowered:
+            status = "insufficient_scope"
+        return {
+            "ok": False,
+            "status": status,
+            "mcpServer": "RevenueCat",
+            "mcpUrl": REVENUECAT_MCP_URL,
+            "error": text[:1500],
+            "message": "RevenueCat MCP access failed. Do not continue with subscription setup until RevenueCat is reconnected and the probe succeeds.",
+            "reauthentication": "Reconnect the RevenueCat plugin/OAuth session in Codex, or rotate/configure a valid RevenueCat API v2 key with enough write scope for products, entitlements, offerings, and paywalls.",
+        }
+
+    if isinstance(payload, list):
+        return {
+            "ok": True,
+            "status": "valid",
+            "mcpServer": "RevenueCat",
+            "mcpUrl": REVENUECAT_MCP_URL,
+            "visibleProjects": len(payload),
+            "message": "RevenueCat MCP access returned project data without an authorization failure.",
+        }
+    if isinstance(payload, dict):
+        if isinstance(payload.get("projects"), list):
+            project_count = len(payload["projects"])
+        elif isinstance(payload.get("data"), list):
+            project_count = len(payload["data"])
+        else:
+            project_count = None
+        if project_count is not None:
+            return {
+                "ok": True,
+                "status": "valid",
+                "mcpServer": "RevenueCat",
+                "mcpUrl": REVENUECAT_MCP_URL,
+                "visibleProjects": project_count,
+                "message": "RevenueCat MCP access returned project data without an authorization failure.",
+            }
+    return {
+        "ok": False,
+        "status": "unrecognized_probe_result",
+        "mcpServer": "RevenueCat",
+        "mcpUrl": REVENUECAT_MCP_URL,
+        "probeResult": text[:1500],
+        "message": "RevenueCat probe did not include a known auth failure, but it was not recognizable as project data. Run mcp__RevenueCat.list_projects with limit=1 and retry.",
+    }
+
+
+def preflight_access(
+    verify_apple: bool = True,
+    revenuecat_probe_payload: Any = None,
+) -> dict[str, Any]:
+    apple = app_store_connect_access_probe() if verify_apple else {
+        "ok": False,
+        "status": "skipped",
+        "message": "App Store Connect verification was skipped. Do not apply App Store Connect changes until a read-only API probe succeeds.",
+    }
+    revenuecat = revenuecat_access_probe(revenuecat_probe_payload)
+    blockers = []
+    if apple.get("ok") is not True:
+        blockers.append("App Store Connect access is not verified.")
+    if revenuecat.get("ok") is not True:
+        blockers.append("RevenueCat MCP access is not verified.")
+    reauthorization_prompts = []
+    if apple.get("ok") is not True:
+        reauthorization_prompts.append(
+            {
+                "service": "App Store Connect",
+                "prompt": "App Store Connect access is not verified. Reconnect or replace the App Store Connect API key, source the credential env file, then rerun preflight-access.",
+                "recommendedCommand": (
+                    "python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor --fix "
+                    "--key-id <KEY_ID> --issuer-id <ISSUER_ID> "
+                    "--import-key ~/Downloads/AuthKey_<KEY_ID>.p8 --write-env-file --verify"
+                ),
+            }
+        )
+    if revenuecat.get("ok") is not True:
+        reauthorization_prompts.append(
+            {
+                "service": "RevenueCat",
+                "prompt": "RevenueCat access is not verified. Re-authorize the RevenueCat plugin/OAuth connection in Codex, then rerun the RevenueCat list_projects probe.",
+                "recommendedProbe": "mcp__RevenueCat.list_projects({\"limit\": 1})",
+                "fallback": "Configure the RevenueCat MCP server with a valid API v2 secret key that has the write scopes needed for products, entitlements, offerings, and paywalls.",
+            }
+        )
+    return {
+        "ok": not blockers,
+        "readyForSubmissionAutomation": not blockers,
+        "appStoreConnect": apple,
+        "revenueCat": revenuecat,
+        "blockedUntil": blockers,
+        "reauthorizationPrompts": reauthorization_prompts,
+        "requiredBeforeAutomation": [
+            "Run this preflight before applying App Store Connect metadata, pricing, screenshots, build uploads, or review submission changes.",
+            "Verify App Store Connect with a read-only /v1/apps request using the configured API key/JWT.",
+            "Verify RevenueCat by calling the RevenueCat MCP list_projects tool; stop on revoked, unauthorized, or insufficient-scope responses.",
+        ],
+    }
 
 
 def add_common_config_argument(parser: argparse.ArgumentParser) -> None:
@@ -2374,6 +2661,23 @@ def build_parser() -> argparse.ArgumentParser:
     add_credential_setup_arguments(doctor_parser)
     setup = sub.add_parser("credential-setup", help="Prepare local App Store Connect credential exports.")
     add_credential_setup_arguments(setup)
+    preflight = sub.add_parser(
+        "preflight-access",
+        help="Verify App Store Connect and RevenueCat access before release or subscription automation.",
+    )
+    preflight.add_argument(
+        "--skip-apple",
+        action="store_true",
+        help="Skip the App Store Connect live API probe. Intended only for diagnostics.",
+    )
+    preflight.add_argument(
+        "--revenuecat-probe-json",
+        help="JSON/string result from the RevenueCat MCP list_projects probe.",
+    )
+    preflight.add_argument(
+        "--revenuecat-probe-file",
+        help="Path to a file containing the RevenueCat MCP list_projects probe result.",
+    )
     sub.add_parser("field-map")
     sub.add_parser("template")
 
@@ -2474,6 +2778,16 @@ def main(argv: list[str] | None = None) -> int:
             print_json(credential_setup(args) if args.fix else doctor())
         elif args.command == "credential-setup":
             print_json(credential_setup(args))
+        elif args.command == "preflight-access":
+            probe_text = args.revenuecat_probe_json
+            if args.revenuecat_probe_file:
+                probe_text = Path(args.revenuecat_probe_file).expanduser().read_text(encoding="utf-8")
+            print_json(
+                preflight_access(
+                    verify_apple=not args.skip_apple,
+                    revenuecat_probe_payload=revenuecat_probe_payload_from_text(probe_text),
+                )
+            )
         elif args.command == "field-map":
             print_json(load_json(FIELD_MAP))
         elif args.command == "template":

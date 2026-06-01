@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.6.0] - 2026-06-01
+
+- Added `preflight-access` and MCP `asc_preflight_access` so Codex checks App Store Connect API access and RevenueCat MCP access before release/subscription automation.
+- Added explicit reauthorization prompts for revoked, unauthorized, missing, or under-scoped App Store Connect and RevenueCat credentials.
+- Added `accessPreflight` and `revenueCatIntegration` template blocks so subscription submissions start with RevenueCat project/offering/entitlement coordination and token-readiness checks.
+
 ## [1.5.0] - 2026-06-01
 
 - Added a flexible `freeProAccessModel` default for subscription apps, targeting 70-80% useful Free functionality and 20-30% high-intent Pro depth.

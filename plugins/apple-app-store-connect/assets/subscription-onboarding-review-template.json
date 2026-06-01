@@ -1,4 +1,38 @@
 {
+  "accessPreflight": {
+    "requiredBeforeAutomation": true,
+    "onFailure": "promptForReauthorization",
+    "appStoreConnect": {
+      "required": true,
+      "probe": "GET /v1/apps?limit=1"
+    },
+    "revenueCat": {
+      "requiredForSubscriptions": true,
+      "mcpServer": "RevenueCat",
+      "probeTool": "mcp__RevenueCat.list_projects",
+      "probeArguments": {
+        "limit": 1
+      },
+      "stopOnStatuses": [
+        "revoked_or_unauthorized",
+        "insufficient_scope",
+        "external_probe_required"
+      ]
+    }
+  },
+  "revenueCatIntegration": {
+    "enabled": true,
+    "projectId": "revenuecat-project-id",
+    "projectName": "Example App",
+    "entitlementIdentifier": "pro",
+    "offeringIdentifier": "default",
+    "packages": [
+      "$rc_monthly",
+      "$rc_annual"
+    ],
+    "requiresAuthenticatedMcp": true,
+    "productsMirrorAppStoreConnectSubscriptions": true
+  },
   "freeProAccessModel": {
     "default": true,
     "enabled": true,

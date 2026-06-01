@@ -1,13 +1,16 @@
 {
   "sourceAudit": {
     "openApiVersion": "4.3.1",
-    "auditedOn": "2026-05-26",
+    "auditedOn": "2026-06-01",
     "primarySources": [
       "https://developer.apple.com/documentation/appstoreconnectapi",
       "https://developer.apple.com/help/app-store-connect/",
       "https://developer.apple.com/app-store/product-page/",
       "https://developer.apple.com/app-store/custom-product-pages/",
-      "https://developer.apple.com/documentation/apple_search_ads/custom_product_pages"
+      "https://developer.apple.com/documentation/apple_search_ads/custom_product_pages",
+      "https://www.revenuecat.com/docs/tools/mcp",
+      "https://www.revenuecat.com/docs/tools/mcp/setup",
+      "https://www.revenuecat.com/docs/projects/authentication"
     ]
   },
   "credentialEnvironment": {
@@ -18,6 +21,22 @@
     "ASC_API_BASE": "Optional API base URL. Defaults to https://api.appstoreconnect.apple.com"
   },
   "submissionFieldGroups": [
+    {
+      "group": "Access preflight",
+      "resource": "App Store Connect API credentials and RevenueCat MCP authentication",
+      "endpointCoverage": [
+        "GET /v1/apps?limit=1",
+        "RevenueCat MCP list_projects"
+      ],
+      "automatableFields": [
+        "App Store Connect JWT/API key readiness",
+        "RevenueCat OAuth/API-token readiness",
+        "revoked token detection",
+        "insufficient scope detection",
+        "reauthorization prompts before automation"
+      ],
+      "notes": "Run before applying App Store Connect metadata, subscription pricing, screenshots, build uploads, review submissions, or RevenueCat products/entitlements/offerings/paywalls. If either service fails, Codex should prompt the user to re-authorize that service before continuing."
+    },
     {
       "group": "App record",
       "resource": "apps",

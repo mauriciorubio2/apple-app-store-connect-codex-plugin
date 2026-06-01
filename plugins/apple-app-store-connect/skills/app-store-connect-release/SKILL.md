@@ -11,6 +11,7 @@ Use this skill when the user asks Codex to work on App Store Connect, TestFlight
 
 - Never submit an app, upload screenshots, change pricing/availability, or mutate App Store Connect unless the user has explicitly confirmed the exact change.
 - Run dry-run commands first. Use `--yes` only after the user confirms.
+- Before applying App Store Connect changes or doing RevenueCat subscription setup, run access preflight. App Store Connect must pass a live read-only API probe, and RevenueCat must pass an MCP `list_projects` probe. If either fails, stop and prompt the user to re-authorize that service before continuing.
 - Never commit, print, or paste `.p8` private keys, JWTs, demo passwords, unreleased screenshots, or private app metadata into public files.
 - Use App Store Connect API keys from environment variables:
   - `ASC_KEY_ID`
@@ -28,13 +29,16 @@ Use this skill when the user asks Codex to work on App Store Connect, TestFlight
    - Target audience, primary use case, top three benefits, differentiators, pricing/subscription model.
    - Required URLs: privacy policy, support, marketing, privacy choices if applicable.
    - App Review contact, demo account, notes, feature flags, sandbox subscription setup.
-2. Run:
+2. Run the local doctor and access preflight:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py preflight-access
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py field-map
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py template
 ```
+
+`preflight-access` verifies App Store Connect credentials with `GET /v1/apps?limit=1`. It also requires a RevenueCat MCP probe because RevenueCat OAuth/API-token state belongs to the RevenueCat plugin, not this local script. If the preflight output says `external_probe_required`, call the RevenueCat MCP tool `list_projects` with `limit=1`, then treat the result as the RevenueCat access proof. If the RevenueCat tool returns `authorization_error`, `access token has been revoked`, `401`, `403`, or `insufficient_scope`, tell the user RevenueCat must be re-authorized in Codex before subscription setup can continue.
 
 3. If `doctor` reports missing credentials and the user has downloaded an API key, prepare local credentials without exposing the private key:
 
@@ -47,6 +51,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py doctor --fix \
 ```
 
 Then source the returned env file and rerun `doctor`. For individual API keys, pass `--key-type individual` and omit `--issuer-id`.
+
+If App Store Connect preflight fails, prompt the user to reconnect/replace the App Store Connect API key and rerun `doctor --fix ... --verify`. If RevenueCat preflight fails, prompt the user to reconnect the RevenueCat plugin/OAuth session or configure a valid RevenueCat API v2 secret key with write access for products, entitlements, offerings, and paywalls.
 
 4. Draft or update a submission JSON file using `assets/submission-template.json`.
 5. Plan versioning before upload or submission:
@@ -316,6 +322,7 @@ The confirmed apply finds the base territory's free price point, writes an app p
 For subscriptions and paid features:
 
 - Default to a flexible Free + Pro model unless the creator explicitly wants another setup. Free should grant roughly 70-80% of useful functionality so users get a real product, while Pro should unlock the remaining 20-30% of high-intent depth.
+- Before creating or changing subscription products, entitlements, offerings, paywalls, or App Store Connect subscription pricing, verify both App Store Connect and RevenueCat access. Do not start the subscription setup while either token/key is revoked, unauthorized, missing, or under-scoped.
 - Keep the app's core loop available on Free: basic browsing, search, personalization, status/detail views, and a sensible number of tracked items should not be blocked by default.
 - Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, or an ad-free experience when relevant.
 - If an app needs a different split, keep the plugin flexible: adjust `freeProAccessModel.targetFreeAccessPercent`, `targetProAccessPercent`, pricing products, paywall triggers, and add `customAccessSplitReason`.
@@ -375,6 +382,7 @@ Prepare these for the user, but do not claim full API automation unless Apple ad
 When the plugin MCP server is installed, prefer these tools over shell calls:
 
 - `asc_doctor`
+- `asc_preflight_access`
 - `asc_credential_setup`
 - `asc_field_map`
 - `asc_validate_submission_config`

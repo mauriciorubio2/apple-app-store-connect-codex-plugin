@@ -22,6 +22,20 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "asc_preflight_access",
+        "description": "Verify App Store Connect API access and require/parse a RevenueCat MCP list_projects probe before release or subscription automation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "skipApple": {"type": "boolean", "default": False},
+                "revenueCatProbeJson": {
+                    "type": "string",
+                    "description": "JSON/string result from calling the RevenueCat MCP list_projects tool with limit=1.",
+                },
+            },
+        },
+    },
+    {
         "name": "asc_credential_setup",
         "description": "Prepare secure local App Store Connect credential exports, optionally copying a .p8 key and writing an ignored env file. Requires confirm=true for file writes.",
         "inputSchema": {
@@ -250,6 +264,13 @@ def run_command(args: list[str]) -> str:
 def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if name == "asc_doctor":
         text = run_command(["python3", str(CLI), "doctor"])
+    elif name == "asc_preflight_access":
+        command = ["python3", str(CLI), "preflight-access"]
+        if arguments.get("skipApple"):
+            command.append("--skip-apple")
+        if arguments.get("revenueCatProbeJson"):
+            command += ["--revenuecat-probe-json", arguments["revenueCatProbeJson"]]
+        text = run_command(command)
     elif name == "asc_credential_setup":
         command = ["python3", str(CLI), "credential-setup"]
         if arguments.get("keyId"):
@@ -406,7 +427,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.5.0"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.6.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}
