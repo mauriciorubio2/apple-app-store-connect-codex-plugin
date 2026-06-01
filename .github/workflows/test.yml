@@ -22,3 +22,6 @@ jobs:
           python3 -m json.tool plugins/apple-app-store-connect/assets/field-map.json >/dev/null
           python3 -m json.tool plugins/apple-app-store-connect/assets/submission-template.json >/dev/null
           python3 -m json.tool plugins/apple-app-store-connect/assets/screenshot-template.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/assets/screenshot-recipe.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/assets/app-icon-options-recipe.json >/dev/null
+          python3 -m json.tool plugins/apple-app-store-connect/assets/subscription-onboarding-review-template.json >/dev/null

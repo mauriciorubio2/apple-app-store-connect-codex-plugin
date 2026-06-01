@@ -38,6 +38,88 @@
     "availability": "allCountries",
     "availableInNewTerritories": true
   },
+  "subscriptionPricing": {
+    "appDownloadModel": "freeWithSubscription",
+    "baseTerritory": "USA",
+    "useSingleSubscriptionGroup": true,
+    "introOfferRecommended": true,
+    "products": [
+      {
+        "subscriptionId": "subscription-monthly-id",
+        "productId": "com.example.product.pro.monthly",
+        "period": "ONE_MONTH",
+        "role": "primary",
+        "territory": "USA",
+        "pricePointId": "subscription-price-point-id",
+        "startDate": null,
+        "preserveCurrentPrice": false
+      },
+      {
+        "subscriptionId": "subscription-yearly-id",
+        "productId": "com.example.product.pro.yearly",
+        "period": "ONE_YEAR",
+        "role": "bestValue",
+        "territory": "USA",
+        "pricePointId": "subscription-price-point-id",
+        "startDate": null,
+        "preserveCurrentPrice": false
+      }
+    ],
+    "introductoryOffers": [
+      {
+        "subscriptionId": "subscription-monthly-id",
+        "territory": "USA",
+        "offerMode": "FREE_TRIAL",
+        "duration": "ONE_WEEK",
+        "numberOfPeriods": 1
+      }
+    ],
+    "notes": "Use App Store Connect price point IDs from list-subscription-price-points. Keep subscription prices separate from the app download price."
+  },
+  "onboarding": {
+    "collectsPreferences": true,
+    "paywallTiming": "afterFirstPersonalizedValue",
+    "restorePurchasesVisible": true,
+    "termsAndPrivacyVisibleOnPaywall": true,
+    "screens": [
+      "Pick favorites or goals",
+      "Show personalized upcoming value",
+      "Explain Pro benefits",
+      "Offer trial or continue free"
+    ]
+  },
+  "reviewPromptPolicy": {
+    "usesStoreKitRequestReview": true,
+    "minimumDaysSinceInstall": 3,
+    "minimumSessions": 3,
+    "minimumPositiveActions": 2,
+    "localCooldownDays": 120,
+    "positiveMomentTriggers": [
+      {
+        "event": "followed_first_team_or_topic",
+        "afterSuccessfulUserOutcome": true
+      },
+      {
+        "event": "opened_personalized_match_or_event_detail",
+        "afterSuccessfulUserOutcome": true
+      },
+      {
+        "event": "received_useful_alert_or_reminder",
+        "afterSuccessfulUserOutcome": true
+      }
+    ],
+    "blockedContexts": [
+      "launch",
+      "onboarding",
+      "paywall",
+      "purchase_flow",
+      "error",
+      "offline",
+      "subscription_cancel",
+      "permission_prompt"
+    ],
+    "manualReviewLink": "https://apps.apple.com/app/id1234567890?action=write-review"
+  },
   "ipReview": {
     "usesThirdPartyIP": false,
     "hasWrittenAuthorization": false,

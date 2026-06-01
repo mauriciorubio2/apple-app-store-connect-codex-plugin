@@ -80,6 +80,15 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-downlo
   --config appstore-submission.json --yes
 ```
 
+8. For subscription apps, plan pricing, onboarding, and review triggers before final metadata:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-growth-strategy \
+  --config appstore-submission.json
+```
+
+Use `assets/subscription-onboarding-review-template.json` as the default pattern for event-driven apps such as sports, tournament, or countdown trackers.
+
 ## Metadata Guidance
 
 Use Apple's product page recommendations:
@@ -88,6 +97,7 @@ Use Apple's product page recommendations:
 - Subtitle: 30 characters maximum. Describe the core user outcome, not a vague slogan.
 - Description: lead with the strongest benefit in the first sentence because it is visible before expansion. Use one concise paragraph followed by a short feature list. Avoid keyword stuffing and avoid specific prices.
 - Subscription apps: append a `SUBSCRIPTION INFORMATION:` section to the App Store description before review. It must include the Pro/subscription value, trial and plan cadence summary, auto-renewal/cancellation disclosure, a functional Privacy Policy URL, and a functional Terms of Use/EULA URL. Apple can block review if the Terms of Use link is missing from metadata.
+- Pricing: treat app download price and subscription prices as separate. Free-download subscription apps should use `$0` app pricing plus explicit subscription price point IDs for each subscription product. Do not put exact prices in App Store description copy unless the user explicitly asks and accepts localization/currency maintenance risk.
 - Third-party/IP-sensitive apps: do not use unlicensed official logos, crests, trophies, event marks, player photos, broadcaster marks, or confusingly similar generated artwork in the app binary, app icon, screenshots, or metadata. If the app is an independent fan/reference app, put a clear no-affiliation disclaimer in the first paragraph of the description, repeat it in App Review notes, avoid trademark-heavy keywords, and use original generic artwork unless the user provides documentary authorization.
 - Keywords: 100 characters maximum. Use relevant comma-separated terms with no spaces after commas. Avoid duplicates, plural variants when singular is present, category names, competitor names, trademarks, celebrity names, irrelevant terms, and objectionable terms.
 - Promotional text: 170 characters maximum. Use for current launches, offers, or updates; do not use it for search ranking keywords.
@@ -307,11 +317,44 @@ For subscriptions and paid features:
 
 - Include localized subscription names and descriptions.
 - Include App Review screenshots for the paywall or purchased feature.
+- Prefer one subscription group for most apps so users cannot accidentally hold multiple active subscriptions.
+- Offer a clear monthly/default option and an annual best-value option when the discount is real. Weekly plans can be useful for short event apps, but do not make them the only obvious path.
+- Use a first-time introductory offer only after the onboarding flow has shown value; display it with StoreKit/paywall terms, not vague marketing copy.
+- Use `list-subscription-price-points` to find price point IDs, then `configure-subscription-pricing` to dry-run and apply subscription prices/intro offers after explicit confirmation.
 - Include Privacy Policy and Terms of Use links in the App Store description, even if the app info localization already has a privacy URL.
 - Include a subscription information section that explains the trial, weekly/monthly/yearly or relevant plan cadence, auto-renewal, cancellation timing, account billing, and account settings management.
 - For first-time IAPs/subscriptions, prepare to submit them with a new app version when Apple requires it.
 - In screenshots and description, avoid presenting paid-only features as free.
 - App Review notes should explain how reviewers can access sandbox purchase paths or pre-unlocked demos.
+
+Subscription pricing commands:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-growth-strategy \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py list-subscription-price-points \
+  --subscription-id subscription-id \
+  --territory USA
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-pricing \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-pricing \
+  --config appstore-submission.json --yes
+```
+
+## Onboarding And Review Prompts
+
+For subscription apps, especially event-driven apps like World Cup-style trackers:
+
+- Let users choose favorite teams, tournaments, groups, or notification preferences before the paywall.
+- Show personalized value before asking for payment: a tailored schedule, match center, countdown, reminders, standings, or tracked items.
+- Ask notification permission only after explaining what the alert does.
+- Show Restore Purchases plus Terms of Use and Privacy Policy links wherever the paywall appears.
+- Do not call StoreKit `requestReview` on launch, during onboarding, on a paywall, after a purchase prompt, after cancellation, after an error, after an offline failure, or as a direct result of tapping a "Rate us" button.
+- Use review prompts only after positive completed outcomes, such as following a first team/topic, opening a personalized match/event hub, or receiving a useful reminder. Add a local cooldown even though Apple also limits system prompts to three displays per 365 days.
+- Use an App Store `?action=write-review` URL for explicit user-initiated review actions in settings/help.
 
 ## Manual Or Limited Areas
 
@@ -335,6 +378,9 @@ When the plugin MCP server is installed, prefer these tools over shell calls:
 - `asc_apply_version`
 - `asc_apply_metadata`
 - `asc_configure_free_download`
+- `asc_plan_growth_strategy`
+- `asc_configure_subscription_pricing`
+- `asc_list_subscription_price_points`
 - `asc_list_apps`
 - `asc_upload_build_api`
 - `asc_generate_screenshots`

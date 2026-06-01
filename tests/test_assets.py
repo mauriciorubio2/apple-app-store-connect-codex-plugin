@@ -18,13 +18,14 @@ class AssetTests(unittest.TestCase):
             PLUGIN / "assets/screenshot-recipe.json",
             PLUGIN / "assets/screenshot-template.json",
             PLUGIN / "assets/app-icon-options-recipe.json",
+            PLUGIN / "assets/subscription-onboarding-review-template.json",
         ]:
             with self.subTest(path=path):
                 json.loads(path.read_text())
 
     def test_manifest_has_release_metadata(self):
         manifest = json.loads((PLUGIN / ".codex-plugin/plugin.json").read_text())
-        self.assertEqual(manifest["version"], "1.3.7")
+        self.assertEqual(manifest["version"], "1.4.0")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["repository"], "https://github.com/mauriciorubio2/apple-app-store-connect-codex-plugin")
         self.assertIn("mcpServers", manifest)

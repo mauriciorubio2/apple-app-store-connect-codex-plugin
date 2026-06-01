@@ -1,0 +1,81 @@
+{
+  "subscriptionPricing": {
+    "appDownloadModel": "freeWithSubscription",
+    "baseTerritory": "USA",
+    "useSingleSubscriptionGroup": true,
+    "introOfferRecommended": true,
+    "products": [
+      {
+        "subscriptionId": "monthly-subscription-id",
+        "productId": "com.example.app.pro.monthly",
+        "period": "ONE_MONTH",
+        "role": "primary",
+        "territory": "USA",
+        "pricePointId": "subscription-price-point-id",
+        "preserveCurrentPrice": false
+      },
+      {
+        "subscriptionId": "yearly-subscription-id",
+        "productId": "com.example.app.pro.yearly",
+        "period": "ONE_YEAR",
+        "role": "bestValue",
+        "territory": "USA",
+        "pricePointId": "subscription-price-point-id",
+        "preserveCurrentPrice": false
+      }
+    ],
+    "introductoryOffers": [
+      {
+        "subscriptionId": "monthly-subscription-id",
+        "territory": "USA",
+        "offerMode": "FREE_TRIAL",
+        "duration": "ONE_WEEK",
+        "numberOfPeriods": 1
+      }
+    ]
+  },
+  "onboarding": {
+    "collectsPreferences": true,
+    "paywallTiming": "afterFirstPersonalizedValue",
+    "restorePurchasesVisible": true,
+    "termsAndPrivacyVisibleOnPaywall": true,
+    "sportsEventAppPattern": [
+      "Let users choose favorite teams, groups, or tournaments first.",
+      "Show their personalized match/event hub before asking for purchase.",
+      "Ask notification permission only after explaining fixture/reminder value.",
+      "Present Pro as an upgrade for alerts, advanced tracking, widgets, or deeper historical views."
+    ]
+  },
+  "reviewPromptPolicy": {
+    "usesStoreKitRequestReview": true,
+    "minimumDaysSinceInstall": 3,
+    "minimumSessions": 3,
+    "minimumPositiveActions": 2,
+    "localCooldownDays": 120,
+    "positiveMomentTriggers": [
+      {
+        "event": "followed_first_team_or_topic",
+        "afterSuccessfulUserOutcome": true
+      },
+      {
+        "event": "checked_personalized_match_center",
+        "afterSuccessfulUserOutcome": true
+      },
+      {
+        "event": "received_useful_match_alert",
+        "afterSuccessfulUserOutcome": true
+      }
+    ],
+    "blockedContexts": [
+      "launch",
+      "first_launch",
+      "onboarding",
+      "paywall",
+      "purchase_flow",
+      "subscription_cancel",
+      "error",
+      "offline",
+      "permission_prompt"
+    ]
+  }
+}

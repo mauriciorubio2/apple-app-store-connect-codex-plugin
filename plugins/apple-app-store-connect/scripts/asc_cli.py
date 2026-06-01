@@ -51,6 +51,33 @@ SUBSCRIPTION_DESCRIPTION_MARKERS = {
     "cancel": "cancel",
     "twenty_four_hours": "24 hours",
 }
+SUBSCRIPTION_PERIODS = {"ONE_WEEK", "ONE_MONTH", "TWO_MONTHS", "THREE_MONTHS", "SIX_MONTHS", "ONE_YEAR"}
+SUBSCRIPTION_OFFER_MODES = {"PAY_AS_YOU_GO", "PAY_UP_FRONT", "FREE_TRIAL"}
+SUBSCRIPTION_OFFER_DURATIONS = {
+    "THREE_DAYS",
+    "ONE_WEEK",
+    "TWO_WEEKS",
+    "ONE_MONTH",
+    "TWO_MONTHS",
+    "THREE_MONTHS",
+    "SIX_MONTHS",
+    "ONE_YEAR",
+}
+BLOCKED_REVIEW_CONTEXTS = {
+    "launch",
+    "first_launch",
+    "onboarding",
+    "paywall",
+    "purchase",
+    "purchase_flow",
+    "subscription_cancel",
+    "error",
+    "crash",
+    "offline",
+    "permission_prompt",
+    "notification_permission",
+    "user_tapped_rate_us",
+}
 
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
@@ -879,6 +906,428 @@ def configure_free_download(args: argparse.Namespace, client: AppStoreConnectCli
     }
 
 
+def subscription_pricing_entries(config: dict[str, Any]) -> list[dict[str, Any]]:
+    pricing = config.get("subscriptionPricing") or {}
+    entries: list[dict[str, Any]] = []
+    for item in as_list(pricing.get("products")) + as_list(pricing.get("prices")):
+        if item:
+            entries.append(item)
+    for sub in as_list(config.get("subscriptions")):
+        for item in as_list(sub.get("prices")):
+            merged = {**item}
+            merged.setdefault("subscriptionId", sub.get("id"))
+            merged.setdefault("productId", sub.get("productId"))
+            merged.setdefault("period", sub.get("period") or sub.get("subscriptionPeriod"))
+            if merged:
+                entries.append(merged)
+    return entries
+
+
+def subscription_intro_offer_entries(config: dict[str, Any]) -> list[dict[str, Any]]:
+    pricing = config.get("subscriptionPricing") or {}
+    entries = [item for item in as_list(pricing.get("introductoryOffers")) if item]
+    for sub in as_list(config.get("subscriptions")):
+        for item in as_list(sub.get("introductoryOffers")):
+            merged = {**item}
+            merged.setdefault("subscriptionId", sub.get("id"))
+            merged.setdefault("productId", sub.get("productId"))
+            entries.append(merged)
+    return entries
+
+
+def subscription_id_by_product(config: dict[str, Any]) -> dict[str, str]:
+    result = {}
+    for sub in as_list(config.get("subscriptions")):
+        if sub.get("productId") and sub.get("id"):
+            result[sub["productId"]] = sub["id"]
+    return result
+
+
+def resolve_subscription_id(item: dict[str, Any], product_map: dict[str, str]) -> str | None:
+    return item.get("subscriptionId") or item.get("id") or product_map.get(str(item.get("productId")))
+
+
+def build_subscription_price_body(
+    subscription_id: str,
+    price_point_id: str,
+    territory: str | None = None,
+    start_date: str | None = None,
+    preserve_current_price: bool | None = None,
+) -> dict[str, Any]:
+    relationships = {
+        "subscription": relationship("subscriptions", subscription_id),
+        "subscriptionPricePoint": relationship("subscriptionPricePoints", price_point_id),
+    }
+    if territory:
+        relationships["territory"] = relationship("territories", territory)
+    return json_api_body(
+        "subscriptionPrices",
+        {"startDate": start_date, "preserveCurrentPrice": preserve_current_price},
+        relationships,
+    )
+
+
+def build_subscription_intro_offer_body(
+    subscription_id: str,
+    offer: dict[str, Any],
+) -> dict[str, Any]:
+    attrs = {
+        "startDate": offer.get("startDate"),
+        "endDate": offer.get("endDate"),
+        "duration": offer.get("duration", "ONE_WEEK"),
+        "offerMode": offer.get("offerMode", "FREE_TRIAL"),
+        "numberOfPeriods": int(offer.get("numberOfPeriods", 1)),
+    }
+    relationships = {"subscription": relationship("subscriptions", subscription_id)}
+    territory = offer.get("territory") or offer.get("territoryId")
+    price_point_id = offer.get("pricePointId") or offer.get("subscriptionPricePointId")
+    if territory:
+        relationships["territory"] = relationship("territories", territory)
+    if price_point_id:
+        relationships["subscriptionPricePoint"] = relationship("subscriptionPricePoints", price_point_id)
+    return json_api_body("subscriptionIntroductoryOffers", attrs, relationships)
+
+
+def validate_subscription_pricing_strategy(
+    config: dict[str, Any], issues: list[dict[str, str]]
+) -> None:
+    subscriptions = as_list(config.get("subscriptions"))
+    pricing = config.get("subscriptionPricing") or {}
+    if not subscriptions:
+        return
+    if not pricing:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing",
+                "message": "Subscription apps should include a subscriptionPricing plan with periods, price point IDs, trial/offer strategy, and territory assumptions.",
+            }
+        )
+        return
+
+    download_price = str((config.get("pricingAvailability") or {}).get("downloadPrice", "")).strip()
+    if pricing.get("appDownloadModel", "freeWithSubscription") == "freeWithSubscription" and download_price not in {
+        "0",
+        "0.0",
+        "0.00",
+    }:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "pricingAvailability.downloadPrice",
+                "message": "For a free-download app with paid subscriptions, plan the app download price as $0 separately from subscription prices.",
+            }
+        )
+    if pricing.get("useSingleSubscriptionGroup") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.useSingleSubscriptionGroup",
+                "message": "Most apps should use one subscription group so users cannot accidentally buy multiple active subscriptions.",
+            }
+        )
+
+    entries = subscription_pricing_entries(config)
+    if not entries:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.products",
+                "message": "Add subscription price entries for the base territory before applying subscription pricing.",
+            }
+        )
+    periods = {str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper() for entry in entries}
+    if periods and not periods.intersection(SUBSCRIPTION_PERIODS):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.products.period",
+                "message": "Use App Store subscription period values such as ONE_MONTH or ONE_YEAR.",
+            }
+        )
+    if entries and "ONE_YEAR" not in periods:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.products",
+                "message": "Consider an annual option with a clear best-value label for higher-intent subscribers.",
+            }
+        )
+    if entries and not any(entry.get("pricePointId") or entry.get("subscriptionPricePointId") for entry in entries):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.products.pricePointId",
+                "message": "Applying subscription prices requires App Store Connect subscription price point IDs.",
+            }
+        )
+    for index, entry in enumerate(entries):
+        field = f"subscriptionPricing.products[{index}]"
+        period = str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper()
+        if period and period not in SUBSCRIPTION_PERIODS:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".period",
+                    "message": "Subscription period must be one of Apple's supported period constants.",
+                }
+            )
+        if entry.get("changeType") == "increase" and entry.get("preserveCurrentPrice") is not True:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field + ".preserveCurrentPrice",
+                    "message": "For price increases, decide whether to preserve existing subscriber prices and note that some increases may require subscriber consent.",
+                }
+            )
+
+    offers = subscription_intro_offer_entries(config)
+    if pricing.get("introOfferRecommended", True) and not offers:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.introductoryOffers",
+                "message": "Consider a first-time subscriber introductory offer, usually a short free trial after users see onboarding value.",
+            }
+        )
+    for index, offer in enumerate(offers):
+        field = f"subscriptionPricing.introductoryOffers[{index}]"
+        if str(offer.get("offerMode", "FREE_TRIAL")).upper() not in SUBSCRIPTION_OFFER_MODES:
+            issues.append(
+                {"severity": "error", "field": field + ".offerMode", "message": "Unsupported subscription offer mode."}
+            )
+        if str(offer.get("duration", "ONE_WEEK")).upper() not in SUBSCRIPTION_OFFER_DURATIONS:
+            issues.append(
+                {"severity": "error", "field": field + ".duration", "message": "Unsupported subscription offer duration."}
+            )
+
+
+def validate_onboarding_strategy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    subscriptions = as_list(config.get("subscriptions"))
+    if not subscriptions:
+        return
+    onboarding = config.get("onboarding") or {}
+    if not onboarding:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "onboarding",
+                "message": "Subscription apps should define value-first onboarding before the paywall is shown.",
+            }
+        )
+        return
+    if onboarding.get("paywallTiming") in {"launch", "firstLaunch", "beforeValue", "before_onboarding"}:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "onboarding.paywallTiming",
+                "message": "Show the paywall after users configure preferences or see useful content, not immediately at launch.",
+            }
+        )
+    if onboarding.get("collectsPreferences") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "onboarding.collectsPreferences",
+                "message": "Ask for lightweight preferences during onboarding so the first app session feels personalized.",
+            }
+        )
+    if onboarding.get("restorePurchasesVisible") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "onboarding.restorePurchasesVisible",
+                "message": "Make Restore Purchases visible wherever the paywall appears.",
+            }
+        )
+    if onboarding.get("termsAndPrivacyVisibleOnPaywall") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "onboarding.termsAndPrivacyVisibleOnPaywall",
+                "message": "Paywalls should expose Terms of Use and Privacy Policy links alongside subscription context.",
+            }
+        )
+
+
+def normalize_context(value: Any) -> str:
+    return str(value or "").strip().replace("-", "_").replace(" ", "_")
+
+
+def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    policy = config.get("reviewPromptPolicy") or {}
+    if not policy:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "reviewPromptPolicy",
+                "message": "Add a StoreKit review prompt policy so requestReview is triggered only after positive, non-interruptive moments.",
+            }
+        )
+        return
+    if policy.get("usesStoreKitRequestReview") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "reviewPromptPolicy.usesStoreKitRequestReview",
+                "message": "Use StoreKit's system review prompt for in-app rating requests; use an App Store write-review URL only for a user-initiated settings/help action.",
+            }
+        )
+    if int(policy.get("minimumSessions", 0) or 0) < 2:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "reviewPromptPolicy.minimumSessions",
+                "message": "Delay review prompts until at least a second or third session.",
+            }
+        )
+    if int(policy.get("minimumDaysSinceInstall", 0) or 0) < 2:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "reviewPromptPolicy.minimumDaysSinceInstall",
+                "message": "Avoid review prompts in the first day; wait until the user has experienced value.",
+            }
+        )
+    if int(policy.get("localCooldownDays", 0) or 0) < 90:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "reviewPromptPolicy.localCooldownDays",
+                "message": "Use a long local cooldown; Apple also limits system prompts to three displays in 365 days.",
+            }
+        )
+    triggers = as_list(policy.get("positiveMomentTriggers"))
+    if not triggers:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "reviewPromptPolicy.positiveMomentTriggers",
+                "message": "Define positive completion triggers such as following a team, tracking a match, or successfully receiving a useful reminder.",
+            }
+        )
+    for index, trigger in enumerate(triggers):
+        field = f"reviewPromptPolicy.positiveMomentTriggers[{index}]"
+        context = normalize_context(trigger.get("context") or trigger.get("event"))
+        if context in BLOCKED_REVIEW_CONTEXTS:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field,
+                    "message": "Do not request a review from launch, onboarding, paywall, purchase, error, cancellation, or direct rate-us action contexts.",
+                }
+            )
+        if trigger.get("afterSuccessfulUserOutcome") is not True:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field + ".afterSuccessfulUserOutcome",
+                    "message": "Review prompts should follow a completed positive outcome, not merely screen views or button taps.",
+                }
+            )
+    blocked = {normalize_context(item) for item in as_list(policy.get("blockedContexts"))}
+    missing = BLOCKED_REVIEW_CONTEXTS.intersection({"launch", "onboarding", "paywall", "error"}) - blocked
+    if missing:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "reviewPromptPolicy.blockedContexts",
+                "message": "Explicitly block review prompts in these contexts: " + ", ".join(sorted(missing)),
+            }
+        )
+
+
+def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
+    issues: list[dict[str, str]] = []
+    validate_subscription_pricing_strategy(config, issues)
+    validate_onboarding_strategy(config, issues)
+    validate_review_prompt_policy(config, issues)
+    pricing_entries = subscription_pricing_entries(config)
+    intro_offers = subscription_intro_offer_entries(config)
+    return {
+        "ok": not [issue for issue in issues if issue["severity"] == "error"],
+        "issues": issues,
+        "recommendations": [
+            "Keep the app download free when monetizing with subscriptions, then price subscription products separately.",
+            "Use one subscription group for most apps; offer clear monthly/yearly choices and label annual as best value when the discount is real.",
+            "Introduce the paywall after value-first onboarding, not on launch.",
+            "Use StoreKit review prompts only after completed positive moments, with local cooldowns and blocked contexts.",
+        ],
+        "plannedPricingActions": [
+            {
+                "resource": "subscriptionPrices",
+                "subscriptionId": entry.get("subscriptionId") or entry.get("id"),
+                "productId": entry.get("productId"),
+                "period": entry.get("period") or entry.get("subscriptionPeriod"),
+                "territory": entry.get("territory") or entry.get("territoryId"),
+                "pricePointId": entry.get("pricePointId") or entry.get("subscriptionPricePointId"),
+                "startDate": entry.get("startDate"),
+                "preserveCurrentPrice": entry.get("preserveCurrentPrice"),
+            }
+            for entry in pricing_entries
+        ],
+        "plannedIntroOfferActions": [
+            {
+                "resource": "subscriptionIntroductoryOffers",
+                "subscriptionId": offer.get("subscriptionId") or offer.get("id"),
+                "productId": offer.get("productId"),
+                "territory": offer.get("territory") or offer.get("territoryId"),
+                "offerMode": offer.get("offerMode", "FREE_TRIAL"),
+                "duration": offer.get("duration", "ONE_WEEK"),
+                "numberOfPeriods": offer.get("numberOfPeriods", 1),
+            }
+            for offer in intro_offers
+        ],
+    }
+
+
+def configure_subscription_pricing(
+    config: dict[str, Any], client: AppStoreConnectClient | None, yes: bool
+) -> dict[str, Any]:
+    plan = plan_growth_strategy(config)
+    if not yes:
+        return {"dryRun": True, **plan}
+    errors = [issue for issue in plan["issues"] if issue["severity"] == "error"]
+    if errors:
+        raise AppStoreConnectError("Growth strategy validation failed; fix errors before applying subscription pricing.")
+    if client is None:
+        raise AppStoreConnectError("An App Store Connect client is required when configuring subscription pricing.")
+
+    product_map = subscription_id_by_product(config)
+    results: list[dict[str, Any]] = []
+    for index, entry in enumerate(subscription_pricing_entries(config)):
+        subscription_id = resolve_subscription_id(entry, product_map)
+        price_point_id = entry.get("pricePointId") or entry.get("subscriptionPricePointId")
+        if not subscription_id or not price_point_id:
+            raise AppStoreConnectError(
+                f"subscriptionPricing.products[{index}] requires subscriptionId or productId plus pricePointId."
+            )
+        response = client.post(
+            "/v1/subscriptionPrices",
+            build_subscription_price_body(
+                subscription_id,
+                price_point_id,
+                entry.get("territory") or entry.get("territoryId"),
+                entry.get("startDate"),
+                entry.get("preserveCurrentPrice"),
+            ),
+        )
+        results.append({"resource": "subscriptionPrices", "id": response.get("data", {}).get("id")})
+
+    for index, offer in enumerate(subscription_intro_offer_entries(config)):
+        subscription_id = resolve_subscription_id(offer, product_map)
+        if not subscription_id:
+            raise AppStoreConnectError(
+                f"subscriptionPricing.introductoryOffers[{index}] requires subscriptionId or productId."
+            )
+        response = client.post(
+            "/v1/subscriptionIntroductoryOffers",
+            build_subscription_intro_offer_body(subscription_id, offer),
+        )
+        results.append({"resource": "subscriptionIntroductoryOffers", "id": response.get("data", {}).get("id")})
+    return {"dryRun": False, "results": results}
+
+
 def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     subscriptions = as_list(config.get("subscriptions"))
@@ -1038,6 +1487,10 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                     "message": "Subscription apps should clearly mark paid or Pro features in screenshot messaging.",
                 }
             )
+
+    validate_subscription_pricing_strategy(config, issues)
+    validate_onboarding_strategy(config, issues)
+    validate_review_prompt_policy(config, issues)
 
     ip_review = config.get("ipReview") or {}
     if ip_review:
@@ -1220,6 +1673,17 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "availability": pricing.get("availability"),
                 "baseTerritory": pricing.get("baseTerritory", "USA"),
                 "tool": "configure-free-download",
+            }
+        )
+    if config.get("subscriptionPricing"):
+        growth_plan = plan_growth_strategy(config)
+        actions.append(
+            {
+                "action": "POST",
+                "resource": "subscriptionPrices/subscriptionIntroductoryOffers",
+                "priceActionCount": len(growth_plan["plannedPricingActions"]),
+                "introOfferActionCount": len(growth_plan["plannedIntroOfferActions"]),
+                "tool": "configure-subscription-pricing",
             }
         )
     for group in as_list(config.get("screenshots")):
@@ -1740,6 +2204,12 @@ def build_parser() -> argparse.ArgumentParser:
     plan = sub.add_parser("plan", help="Show the API operations implied by a config.")
     add_common_config_argument(plan)
 
+    growth = sub.add_parser(
+        "plan-growth-strategy",
+        help="Validate subscription pricing, onboarding, and StoreKit review trigger strategy.",
+    )
+    add_common_config_argument(growth)
+
     apply = sub.add_parser("apply-metadata", help="Apply app info, version, localization, review, and age fields.")
     add_common_config_argument(apply)
     apply.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
@@ -1752,6 +2222,17 @@ def build_parser() -> argparse.ArgumentParser:
     free.add_argument("--config", help="Submission JSON containing app.id.")
     free.add_argument("--base-territory", default="USA", help="Base territory for the free app price point.")
     free.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
+
+    sub_price = sub.add_parser(
+        "configure-subscription-pricing",
+        help="Create subscription prices and introductory offers from a submission config.",
+    )
+    add_common_config_argument(sub_price)
+    sub_price.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
+
+    sub_points = sub.add_parser("list-subscription-price-points", help="List price points for a subscription.")
+    sub_points.add_argument("--subscription-id", required=True)
+    sub_points.add_argument("--territory", help="Optional App Store territory filter, such as USA.")
 
     shots = sub.add_parser("upload-screenshots", help="Upload screenshots from the config.")
     add_common_config_argument(shots)
@@ -1819,12 +2300,22 @@ def main(argv: list[str] | None = None) -> int:
             print_json(validate_submission_config(load_json(args.config)))
         elif args.command == "plan":
             print_json(plan_submission(load_json(args.config)))
+        elif args.command == "plan-growth-strategy":
+            print_json(plan_growth_strategy(load_json(args.config)))
         elif args.command == "apply-metadata":
             client = AppStoreConnectClient() if args.yes else None
             print_json(apply_submission(load_json(args.config), client, args.yes))
         elif args.command == "configure-free-download":
             client = AppStoreConnectClient() if args.yes else None
             print_json(configure_free_download(args, client))
+        elif args.command == "configure-subscription-pricing":
+            client = AppStoreConnectClient() if args.yes else None
+            print_json(configure_subscription_pricing(load_json(args.config), client, args.yes))
+        elif args.command == "list-subscription-price-points":
+            query = {"include": "territory", "limit": "200"}
+            if args.territory:
+                query["filter[territory]"] = args.territory
+            print_json(AppStoreConnectClient().get(f"/v1/subscriptions/{args.subscription_id}/pricePoints", query))
         elif args.command == "upload-screenshots":
             client = AppStoreConnectClient() if args.yes else None
             print_json(upload_screenshots(load_json(args.config), client, args.yes))

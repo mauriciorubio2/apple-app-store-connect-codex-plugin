@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [1.4.0] - 2026-06-01
+
+- Added subscription pricing strategy support with dry-run planning, App Store Connect price point guidance, and confirmed `subscriptionPrices`/introductory-offer creation.
+- Added `subscription-onboarding-review-template.json` for free-download subscription apps, value-first onboarding, paywall timing, and StoreKit review trigger policy.
+- Added validation for subscription pricing gaps, single subscription group recommendations, annual best-value options, intro offers, paywall legal links, and blocked review prompt contexts.
+- Added MCP tools and CLI commands for growth strategy planning, subscription price point lookup, and subscription pricing application.
+
 ## [1.3.7] - 2026-05-31
 
 - Added a no-text app icon rule so generated icon options avoid words, initials, numbers, pseudo-text, labels, slogans, and watermarks by default.

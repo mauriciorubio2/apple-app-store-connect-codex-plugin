@@ -63,6 +63,15 @@ TOOLS = [
         },
     },
     {
+        "name": "asc_plan_growth_strategy",
+        "description": "Validate subscription pricing, value-first onboarding, and StoreKit review prompt trigger strategy.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"configPath": {"type": "string"}},
+            "required": ["configPath"],
+        },
+    },
+    {
         "name": "asc_plan_version",
         "description": "Infer the next App Store version and build number from a local Apple project and optional iteration count.",
         "inputSchema": {
@@ -123,6 +132,30 @@ TOOLS = [
                 "baseTerritory": {"type": "string", "default": "USA"},
                 "confirm": {"type": "boolean", "default": False},
             },
+        },
+    },
+    {
+        "name": "asc_configure_subscription_pricing",
+        "description": "Create subscription prices and introductory offers from a submission config. Requires confirm=true.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "configPath": {"type": "string"},
+                "confirm": {"type": "boolean", "default": False},
+            },
+            "required": ["configPath"],
+        },
+    },
+    {
+        "name": "asc_list_subscription_price_points",
+        "description": "List App Store Connect price points for a subscription, optionally filtered by territory.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "subscriptionId": {"type": "string"},
+                "territory": {"type": "string"},
+            },
+            "required": ["subscriptionId"],
         },
     },
     {
@@ -246,6 +279,8 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         text = run_command(["python3", str(CLI), "validate", "--config", arguments["configPath"]])
     elif name == "asc_plan_submission_config":
         text = run_command(["python3", str(CLI), "plan", "--config", arguments["configPath"]])
+    elif name == "asc_plan_growth_strategy":
+        text = run_command(["python3", str(CLI), "plan-growth-strategy", "--config", arguments["configPath"]])
     elif name == "asc_plan_version":
         command = [
             "python3",
@@ -304,6 +339,22 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if arguments.get("confirm"):
             command.append("--yes")
         text = run_command(command)
+    elif name == "asc_configure_subscription_pricing":
+        command = ["python3", str(CLI), "configure-subscription-pricing", "--config", arguments["configPath"]]
+        if arguments.get("confirm"):
+            command.append("--yes")
+        text = run_command(command)
+    elif name == "asc_list_subscription_price_points":
+        command = [
+            "python3",
+            str(CLI),
+            "list-subscription-price-points",
+            "--subscription-id",
+            arguments["subscriptionId"],
+        ]
+        if arguments.get("territory"):
+            command += ["--territory", arguments["territory"]]
+        text = run_command(command)
     elif name == "asc_list_apps":
         command = ["python3", str(CLI), "list-apps"]
         if arguments.get("bundleId"):
@@ -355,7 +406,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.3.3"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.4.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

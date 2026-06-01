@@ -20,6 +20,8 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Guide iOS app icon selection with five distinct, App Store-safe design options before replacing bundled icon assets.
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
+- Plan and apply subscription product prices and introductory offers when App Store Connect price point IDs are supplied.
+- Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback and optional automatic versioning.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
@@ -41,6 +43,9 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 - [Creating your product page](https://developer.apple.com/app-store/product-page/)
 - [Custom product pages](https://developer.apple.com/app-store/custom-product-pages/)
 - [Apple Ads custom product pages API](https://developer.apple.com/documentation/apple_search_ads/custom_product_pages)
+- [Auto-renewable subscriptions](https://developer.apple.com/app-store/subscriptions/)
+- [Manage pricing for auto-renewable subscriptions](https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/)
+- [Requesting App Store reviews](https://developer.apple.com/documentation/storekit/requesting_app_store_reviews/)
 
 ## Credentials
 
@@ -126,6 +131,34 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-downlo
   --yes
 ```
 
+Plan subscription pricing, onboarding, and review prompt triggers:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-growth-strategy \
+  --config appstore-submission.json
+```
+
+List App Store Connect subscription price points for a product:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py list-subscription-price-points \
+  --subscription-id subscription-id \
+  --territory USA
+```
+
+Apply subscription prices and introductory offers after filling price point IDs:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-pricing \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-pricing \
+  --config appstore-submission.json \
+  --yes
+```
+
+`configure-free-download` handles only the app download price. `configure-subscription-pricing` handles subscription product prices and introductory offers. They are intentionally separate because App Store Connect models them separately.
+
 Plan the next App Store version and build number:
 
 ```bash
@@ -176,6 +209,12 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
 Apple separates the user-facing App Store version from the build iteration. `CFBundleShortVersionString` should match the App Store version and use three period-separated integers such as `1.2.3`. `CFBundleVersion` identifies the uploaded build and uses one to three period-separated integers.
 
 The plugin can infer the next values from Xcode `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, literal `Info.plist` values, git history, and an optional `--iteration-count`. The default `auto` release level uses git messages conservatively: breaking-change markers become major bumps, conventional `feat:` commits become minor bumps, and other release builds become patch bumps. Build numbers always increment, using the provided iteration count when available.
+
+## Subscription Onboarding And Reviews
+
+The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, monthly plus annual options, a first-time trial where appropriate, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
+
+For review prompts, the plugin validates that `requestReview` is not tied to launch, onboarding, paywall, purchase, cancellation, error, permission, or direct "rate us" button contexts. Use a manual App Store write-review link for explicit user-initiated review actions.
 
 Generate screenshots:
 

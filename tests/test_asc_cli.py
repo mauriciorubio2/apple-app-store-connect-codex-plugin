@@ -290,6 +290,88 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertEqual(len(availability_body["included"]), 2)
         self.assertTrue(all(item["attributes"]["available"] for item in availability_body["included"]))
 
+    def test_subscription_price_and_intro_offer_bodies_use_json_api_relationships(self):
+        cli = load_cli()
+        price_body = cli.build_subscription_price_body(
+            "sub-123",
+            "point-123",
+            territory="USA",
+            start_date="2026-07-01",
+            preserve_current_price=True,
+        )
+        offer_body = cli.build_subscription_intro_offer_body(
+            "sub-123",
+            {
+                "territory": "USA",
+                "offerMode": "FREE_TRIAL",
+                "duration": "ONE_WEEK",
+                "numberOfPeriods": 1,
+            },
+        )
+        self.assertEqual(price_body["data"]["type"], "subscriptionPrices")
+        self.assertEqual(
+            price_body["data"]["relationships"]["subscriptionPricePoint"]["data"]["id"],
+            "point-123",
+        )
+        self.assertEqual(price_body["data"]["relationships"]["territory"]["data"]["id"], "USA")
+        self.assertTrue(price_body["data"]["attributes"]["preserveCurrentPrice"])
+        self.assertEqual(offer_body["data"]["type"], "subscriptionIntroductoryOffers")
+        self.assertEqual(offer_body["data"]["attributes"]["offerMode"], "FREE_TRIAL")
+
+    def test_growth_strategy_flags_bad_review_trigger(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-123", "productId": "com.example.pro.monthly"}],
+            "pricingAvailability": {"downloadPrice": "0.00"},
+            "subscriptionPricing": {
+                "useSingleSubscriptionGroup": True,
+                "products": [
+                    {
+                        "subscriptionId": "sub-123",
+                        "period": "ONE_MONTH",
+                        "territory": "USA",
+                        "pricePointId": "point-123",
+                    }
+                ],
+            },
+            "onboarding": {
+                "collectsPreferences": True,
+                "paywallTiming": "afterFirstPersonalizedValue",
+                "restorePurchasesVisible": True,
+                "termsAndPrivacyVisibleOnPaywall": True,
+            },
+            "reviewPromptPolicy": {
+                "usesStoreKitRequestReview": True,
+                "minimumDaysSinceInstall": 0,
+                "minimumSessions": 1,
+                "localCooldownDays": 30,
+                "positiveMomentTriggers": [
+                    {"event": "launch", "afterSuccessfulUserOutcome": False}
+                ],
+                "blockedContexts": ["launch"],
+            },
+        }
+        result = cli.plan_growth_strategy(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertFalse(result["ok"])
+        self.assertIn("reviewPromptPolicy.positiveMomentTriggers[0]", fields)
+        self.assertIn("reviewPromptPolicy.minimumSessions", fields)
+
+    def test_growth_strategy_template_is_valid(self):
+        cli = load_cli()
+        config = json.loads(
+            (ROOT / "plugins/apple-app-store-connect/assets/subscription-onboarding-review-template.json").read_text()
+        )
+        config["subscriptions"] = [
+            {"id": "monthly-subscription-id", "productId": "com.example.app.pro.monthly"},
+            {"id": "yearly-subscription-id", "productId": "com.example.app.pro.yearly"},
+        ]
+        config["pricingAvailability"] = {"downloadPrice": "0.00"}
+        result = cli.plan_growth_strategy(config)
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(result["plannedPricingActions"]), 2)
+        self.assertEqual(len(result["plannedIntroOfferActions"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

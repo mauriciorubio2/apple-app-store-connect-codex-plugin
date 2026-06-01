@@ -255,11 +255,32 @@
         "localized display name",
         "localized description",
         "prices",
+        "subscription price points",
+        "base territory subscription prices",
+        "introductory offers",
         "availability",
         "review screenshots",
         "submission"
       ],
-      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable."
+      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable. Subscription product prices are separate from app download price."
+    },
+    {
+      "group": "Onboarding, paywall, and review prompts",
+      "resource": "Local app implementation guidance and submission config validation",
+      "endpointCoverage": [
+        "Local submission JSON validation",
+        "StoreKit requestReview implementation checklist"
+      ],
+      "automatableFields": [
+        "value-first onboarding checklist",
+        "paywall timing policy",
+        "restore purchases visibility",
+        "terms/privacy paywall visibility",
+        "positive review prompt triggers",
+        "blocked review prompt contexts",
+        "local review prompt cooldown"
+      ],
+      "notes": "Apple controls whether the system rating prompt is displayed. The plugin validates trigger policy so requestReview is used after positive non-interruptive outcomes, not launch, onboarding, paywall, purchase, cancellation, or error flows."
     },
     {
       "group": "Custom product pages and product page optimization",
