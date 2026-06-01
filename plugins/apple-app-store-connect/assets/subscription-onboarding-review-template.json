@@ -27,11 +27,51 @@
     "entitlementIdentifier": "pro",
     "offeringIdentifier": "default",
     "packages": [
+      "$rc_weekly",
       "$rc_monthly",
       "$rc_annual"
     ],
     "requiresAuthenticatedMcp": true,
     "productsMirrorAppStoreConnectSubscriptions": true
+  },
+  "pricingAvailability": {
+    "downloadPrice": "0.00",
+    "baseTerritory": "USA",
+    "availability": "allCountries",
+    "availableInNewTerritories": true
+  },
+  "pricingResearch": {
+    "lastReviewedOn": "2026-06-01",
+    "reviewIntervalMonths": 6,
+    "nextReviewDue": "2026-12-01",
+    "requiresCurrentResearch": true,
+    "sources": [
+      "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+      "https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026/",
+      "https://developer.apple.com/app-store/subscriptions/",
+      "https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/"
+    ],
+    "benchmarkAnchors": [
+      {
+        "period": "ONE_WEEK",
+        "role": "shortTermOptional",
+        "benchmarkCustomerPrice": "4.99",
+        "notes": "Useful for event-driven or short-horizon apps when users may only need premium during a tournament, trip, launch window, or seasonal moment."
+      },
+      {
+        "period": "ONE_MONTH",
+        "role": "primaryComparison",
+        "benchmarkCustomerPrice": "9.99",
+        "notes": "Monthly anchors the normal Pro value on the paywall."
+      },
+      {
+        "period": "ONE_YEAR",
+        "role": "bestValueRetention",
+        "benchmarkCustomerPrice": "29.99",
+        "notes": "Yearly is the best-value option and should show total annual billing clearly."
+      }
+    ],
+    "refreshInstruction": "Refresh RevenueCat benchmark research and Apple subscription/pricing guidance every six months before locking prices."
   },
   "freeProAccessModel": {
     "default": true,
@@ -93,13 +133,31 @@
     "baseTerritory": "USA",
     "useSingleSubscriptionGroup": true,
     "introOfferRecommended": true,
+    "weeklyUseCase": "event-driven or short-horizon premium intent",
+    "customCadenceReason": "",
+    "cadenceStrategy": {
+      "weekly": "optional short-term/event pass",
+      "monthly": "primary comparison plan",
+      "yearly": "best-value retention plan"
+    },
     "products": [
+      {
+        "subscriptionId": "weekly-subscription-id",
+        "productId": "com.example.app.pro.weekly",
+        "period": "ONE_WEEK",
+        "role": "shortTerm",
+        "territory": "USA",
+        "benchmarkCustomerPrice": "4.99",
+        "pricePointId": "subscription-price-point-id",
+        "preserveCurrentPrice": false
+      },
       {
         "subscriptionId": "monthly-subscription-id",
         "productId": "com.example.app.pro.monthly",
         "period": "ONE_MONTH",
         "role": "primary",
         "territory": "USA",
+        "benchmarkCustomerPrice": "9.99",
         "pricePointId": "subscription-price-point-id",
         "preserveCurrentPrice": false
       },
@@ -109,6 +167,7 @@
         "period": "ONE_YEAR",
         "role": "bestValue",
         "territory": "USA",
+        "benchmarkCustomerPrice": "29.99",
         "pricePointId": "subscription-price-point-id",
         "preserveCurrentPrice": false
       }

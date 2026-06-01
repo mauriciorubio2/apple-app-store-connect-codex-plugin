@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.7.0] - 2026-06-01
+
+- Added six-month subscription pricing research freshness checks so Codex warns when weekly/monthly/yearly pricing benchmarks need to be refreshed.
+- Added pricing research metadata and benchmark anchors for weekly, monthly, and yearly subscription plans, including event-driven weekly guidance and annual best-value positioning.
+- Added cadence validation for weekly-primary plans, missing monthly anchors, annual best-value labels, and weak annual discounts when benchmark/customer prices are available.
+
 ## [1.6.0] - 2026-06-01
 
 - Added `preflight-access` and MCP `asc_preflight_access` so Codex checks App Store Connect API access and RevenueCat MCP access before release/subscription automation.

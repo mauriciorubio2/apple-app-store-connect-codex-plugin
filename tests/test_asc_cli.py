@@ -318,6 +318,109 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertEqual(offer_body["data"]["type"], "subscriptionIntroductoryOffers")
         self.assertEqual(offer_body["data"]["attributes"]["offerMode"], "FREE_TRIAL")
 
+    def test_pricing_research_warns_when_stale(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-123", "productId": "com.example.pro.monthly"}],
+            "pricingResearch": {
+                "lastReviewedOn": "2025-01-01",
+                "reviewIntervalMonths": 6,
+                "sources": [
+                    "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+                    "https://developer.apple.com/app-store/subscriptions/",
+                ],
+            },
+            "subscriptionPricing": {
+                "useSingleSubscriptionGroup": True,
+                "products": [
+                    {
+                        "subscriptionId": "sub-123",
+                        "period": "ONE_MONTH",
+                        "role": "primary",
+                        "benchmarkCustomerPrice": "9.99",
+                        "pricePointId": "point-123",
+                    },
+                    {
+                        "subscriptionId": "sub-year",
+                        "period": "ONE_YEAR",
+                        "role": "bestValue",
+                        "benchmarkCustomerPrice": "29.99",
+                        "pricePointId": "point-year",
+                    },
+                ],
+            },
+        }
+        issues = []
+        cli.validate_subscription_pricing_strategy(config, issues)
+        fields = {issue["field"] for issue in issues}
+        self.assertIn("pricingResearch.lastReviewedOn", fields)
+
+    def test_weekly_primary_plan_needs_cadence_reason(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "weekly-subscription-id", "productId": "com.example.pro.weekly"}],
+            "pricingResearch": {
+                "lastReviewedOn": "2026-06-01",
+                "reviewIntervalMonths": 6,
+                "sources": [
+                    "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+                    "https://developer.apple.com/app-store/subscriptions/",
+                ],
+            },
+            "subscriptionPricing": {
+                "useSingleSubscriptionGroup": True,
+                "products": [
+                    {
+                        "subscriptionId": "weekly-subscription-id",
+                        "period": "ONE_WEEK",
+                        "role": "primary",
+                        "benchmarkCustomerPrice": "4.99",
+                        "pricePointId": "point-week",
+                    }
+                ],
+            },
+        }
+        issues = []
+        cli.validate_subscription_pricing_strategy(config, issues)
+        fields = {issue["field"] for issue in issues}
+        self.assertIn("subscriptionPricing.products[0].role", fields)
+
+    def test_annual_discount_below_threshold_warns(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-123", "productId": "com.example.pro.monthly"}],
+            "pricingResearch": {
+                "lastReviewedOn": "2026-06-01",
+                "reviewIntervalMonths": 6,
+                "sources": [
+                    "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+                    "https://developer.apple.com/app-store/subscriptions/",
+                ],
+            },
+            "subscriptionPricing": {
+                "useSingleSubscriptionGroup": True,
+                "products": [
+                    {
+                        "subscriptionId": "sub-month",
+                        "period": "ONE_MONTH",
+                        "role": "primary",
+                        "benchmarkCustomerPrice": "9.99",
+                        "pricePointId": "point-month",
+                    },
+                    {
+                        "subscriptionId": "sub-year",
+                        "period": "ONE_YEAR",
+                        "role": "bestValue",
+                        "benchmarkCustomerPrice": "99.99",
+                        "pricePointId": "point-year",
+                    },
+                ],
+            },
+        }
+        issues = []
+        cli.validate_subscription_pricing_strategy(config, issues)
+        self.assertTrue(any("annual plan discount" in issue["message"] for issue in issues))
+
     def test_revenuecat_access_probe_flags_revoked_token(self):
         cli = load_cli()
         result = cli.revenuecat_access_probe(
@@ -406,6 +509,7 @@ class AscCliValidationTests(unittest.TestCase):
             (ROOT / "plugins/apple-app-store-connect/assets/subscription-onboarding-review-template.json").read_text()
         )
         config["subscriptions"] = [
+            {"id": "weekly-subscription-id", "productId": "com.example.app.pro.weekly"},
             {"id": "monthly-subscription-id", "productId": "com.example.app.pro.monthly"},
             {"id": "yearly-subscription-id", "productId": "com.example.app.pro.yearly"},
         ]
@@ -526,7 +630,7 @@ class AscCliValidationTests(unittest.TestCase):
         config["pricingAvailability"] = {"downloadPrice": "0.00"}
         result = cli.plan_growth_strategy(config)
         self.assertTrue(result["ok"])
-        self.assertEqual(len(result["plannedPricingActions"]), 2)
+        self.assertEqual(len(result["plannedPricingActions"]), 3)
         self.assertEqual(len(result["plannedIntroOfferActions"]), 1)
 
 

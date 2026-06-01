@@ -22,6 +22,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
 - Plan and apply subscription product prices and introductory offers when App Store Connect price point IDs are supplied.
+- Check whether subscription pricing research is stale and prompt Codex to refresh weekly/monthly/yearly benchmarks every six months.
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
 - Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
@@ -53,6 +54,8 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 - [RevenueCat MCP Server](https://www.revenuecat.com/docs/tools/mcp)
 - [RevenueCat MCP setup and authentication](https://www.revenuecat.com/docs/tools/mcp/setup)
 - [RevenueCat API keys and OAuth tokens](https://www.revenuecat.com/docs/projects/authentication)
+- [RevenueCat State of Subscription Apps 2025](https://www.revenuecat.com/state-of-subscription-apps-2025/)
+- [RevenueCat subscription trends and benchmarks for 2026](https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026/)
 
 ## Credentials
 
@@ -174,6 +177,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscriptio
 
 `configure-free-download` handles only the app download price. `configure-subscription-pricing` handles subscription product prices and introductory offers. They are intentionally separate because App Store Connect models them separately.
 
+`plan-growth-strategy` also checks `pricingResearch`. If `lastReviewedOn` is missing or older than the configured six-month interval, Codex should refresh current pricing research before finalizing weekly, monthly, or yearly plan prices. The default benchmark anchors are intentionally starting points, not universal truth: weekly around `$4.99` only for short-term/event intent, monthly around `$9.99` as the main comparison plan, and yearly around `$29.99` as a clear best-value anchor when the discount is real.
+
 Plan the next App Store version and build number:
 
 ```bash
@@ -234,6 +239,8 @@ Run access preflight first. `accessPreflight` requires a live App Store Connect 
 By default, `freeProAccessModel` gives users a complete Free product experience with roughly 70-80% of useful functionality available before purchase. Pro should reserve the remaining high-intent 20-30%: unlimited usage, advanced alerts, widgets or live activities, deeper history/analytics, exports, premium personalization, themes, automations, or other power-user depth. The core loop should stay usable on Free so users get a real taste of the app.
 
 Creators can still change the setup. Set `creatorCanOverride` to true, adjust `targetFreeAccessPercent`/`targetProAccessPercent`, and add `customAccessSplitReason` when a different access split or pricing model is intentional.
+
+Pricing research belongs beside the subscription setup. Keep `pricingResearch.lastReviewedOn`, `reviewIntervalMonths`, `nextReviewDue`, and `sources` current. The plugin defaults to a six-month review cycle because plan-duration benchmarks, competitive price anchors, category willingness to pay, and conversion patterns change regularly.
 
 For review prompts, the plugin validates that `requestReview` is not tied to launch, onboarding, paywall, purchase, cancellation, error, permission, or direct "rate us" button contexts. Use a manual App Store write-review link for explicit user-initiated review actions.
 

@@ -1,7 +1,7 @@
 {
   "name": "apple-app-store-connect",
-  "version": "1.6.0",
-  "description": "Automate App Store Connect release prep, access preflight, versioning, metadata, screenshots, Free/Pro subscription planning, RevenueCat coordination, build uploads, and review submission workflows from Codex.",
+  "version": "1.7.0",
+  "description": "Automate App Store Connect release prep, access preflight, versioning, metadata, screenshots, research-refreshed subscription pricing, Free/Pro planning, RevenueCat coordination, build uploads, and review submission workflows from Codex.",
   "author": {
     "name": "mauriciorubio2",
     "url": "https://github.com/mauriciorubio2"
@@ -24,7 +24,7 @@
   "interface": {
     "displayName": "Apple App Store Connect",
     "shortDescription": "Prepare and submit App Store releases with Codex.",
-    "longDescription": "Connects Codex to Apple App Store Connect workflows for release access preflight, versioning, metadata, ASO and Apple Ads copy, conversion-focused screenshots, flexible Free/Pro subscription access planning, RevenueCat coordination, subscription pricing, onboarding/review trigger policy, build uploads, review notes, and review submissions using Apple's public APIs and delivery tooling.",
+    "longDescription": "Connects Codex to Apple App Store Connect workflows for release access preflight, versioning, metadata, ASO and Apple Ads copy, conversion-focused screenshots, flexible Free/Pro subscription access planning, six-month pricing research freshness checks, RevenueCat coordination, subscription pricing, onboarding/review trigger policy, build uploads, review notes, and review submissions using Apple's public APIs and delivery tooling.",
     "developerName": "mauriciorubio2",
     "category": "Developer Tools",
     "capabilities": [

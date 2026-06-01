@@ -73,6 +73,43 @@
     "requiresAuthenticatedMcp": true,
     "productsMirrorAppStoreConnectSubscriptions": true
   },
+  "pricingResearch": {
+    "lastReviewedOn": "2026-06-01",
+    "reviewIntervalMonths": 6,
+    "nextReviewDue": "2026-12-01",
+    "requiresCurrentResearch": true,
+    "sources": [
+      "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+      "https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026/",
+      "https://developer.apple.com/app-store/subscriptions/",
+      "https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/"
+    ],
+    "benchmarkAnchors": [
+      {
+        "period": "ONE_WEEK",
+        "role": "shortTermOptional",
+        "benchmarkCustomerPrice": "4.99",
+        "notes": "Use weekly only when short-horizon/event intent is real; it can convert but tends to churn faster."
+      },
+      {
+        "period": "ONE_MONTH",
+        "role": "primaryComparison",
+        "benchmarkCustomerPrice": "9.99",
+        "notes": "Monthly is the default comparison cadence for most paywalls."
+      },
+      {
+        "period": "ONE_YEAR",
+        "role": "bestValueRetention",
+        "benchmarkCustomerPrice": "29.99",
+        "notes": "Yearly should be a clear best-value anchor when the discount is real and margins allow."
+      }
+    ],
+    "cadencePrinciples": [
+      "monthly anchors the normal subscription value",
+      "yearly is the best-value retention path",
+      "weekly is optional for event-driven or short-term intent, not the default path"
+    ]
+  },
   "freeProAccessModel": {
     "default": true,
     "enabled": true,
@@ -132,6 +169,13 @@
     "baseTerritory": "USA",
     "useSingleSubscriptionGroup": true,
     "introOfferRecommended": true,
+    "weeklyUseCase": "",
+    "customCadenceReason": "",
+    "cadenceStrategy": {
+      "monthly": "primary comparison plan",
+      "yearly": "best-value retention plan",
+      "weekly": "optional short-term/event-driven plan only"
+    },
     "products": [
       {
         "subscriptionId": "subscription-monthly-id",
@@ -139,6 +183,7 @@
         "period": "ONE_MONTH",
         "role": "primary",
         "territory": "USA",
+        "benchmarkCustomerPrice": "9.99",
         "pricePointId": "subscription-price-point-id",
         "startDate": null,
         "preserveCurrentPrice": false
@@ -149,6 +194,7 @@
         "period": "ONE_YEAR",
         "role": "bestValue",
         "territory": "USA",
+        "benchmarkCustomerPrice": "29.99",
         "pricePointId": "subscription-price-point-id",
         "startDate": null,
         "preserveCurrentPrice": false

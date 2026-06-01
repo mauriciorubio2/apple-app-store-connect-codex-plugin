@@ -12,6 +12,7 @@ Use this skill when the user asks Codex to work on App Store Connect, TestFlight
 - Never submit an app, upload screenshots, change pricing/availability, or mutate App Store Connect unless the user has explicitly confirmed the exact change.
 - Run dry-run commands first. Use `--yes` only after the user confirms.
 - Before applying App Store Connect changes or doing RevenueCat subscription setup, run access preflight. App Store Connect must pass a live read-only API probe, and RevenueCat must pass an MCP `list_projects` probe. If either fails, stop and prompt the user to re-authorize that service before continuing.
+- Before finalizing subscription prices, check `pricingResearch`. If the last review is older than six months, pause pricing decisions and refresh current RevenueCat benchmark research plus Apple subscription/pricing guidance.
 - Never commit, print, or paste `.p8` private keys, JWTs, demo passwords, unreleased screenshots, or private app metadata into public files.
 - Use App Store Connect API keys from environment variables:
   - `ASC_KEY_ID`
@@ -94,6 +95,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-growth-strategy 
 ```
 
 Use `assets/subscription-onboarding-review-template.json` as the default pattern for event-driven apps such as sports, tournament, or countdown trackers. It defaults to Free + Pro, with Free granting roughly 70-80% of useful app functionality and Pro reserving the remaining high-intent depth.
+
+If `plan-growth-strategy` reports stale pricing research, use web research before recommending final prices. Prefer current RevenueCat State of Subscription Apps benchmarks and Apple subscription/pricing docs, then update `pricingResearch.lastReviewedOn`, `nextReviewDue`, `sources`, and benchmark notes.
 
 ## Metadata Guidance
 
@@ -323,6 +326,7 @@ For subscriptions and paid features:
 
 - Default to a flexible Free + Pro model unless the creator explicitly wants another setup. Free should grant roughly 70-80% of useful functionality so users get a real product, while Pro should unlock the remaining 20-30% of high-intent depth.
 - Before creating or changing subscription products, entitlements, offerings, paywalls, or App Store Connect subscription pricing, verify both App Store Connect and RevenueCat access. Do not start the subscription setup while either token/key is revoked, unauthorized, missing, or under-scoped.
+- Refresh subscription pricing research every six months. Treat weekly/monthly/yearly price anchors as benchmark-driven starting points, not permanent truths.
 - Keep the app's core loop available on Free: basic browsing, search, personalization, status/detail views, and a sensible number of tracked items should not be blocked by default.
 - Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, or an ad-free experience when relevant.
 - If an app needs a different split, keep the plugin flexible: adjust `freeProAccessModel.targetFreeAccessPercent`, `targetProAccessPercent`, pricing products, paywall triggers, and add `customAccessSplitReason`.
@@ -330,6 +334,7 @@ For subscriptions and paid features:
 - Include App Review screenshots for the paywall or purchased feature.
 - Prefer one subscription group for most apps so users cannot accidentally hold multiple active subscriptions.
 - Offer a clear monthly/default option and an annual best-value option when the discount is real. Weekly plans can be useful for short event apps, but do not make them the only obvious path.
+- For World Cup-style or event-driven apps, weekly can be a short-term/event pass, monthly should anchor ongoing Pro value, and yearly should be positioned as best value for committed users. Use category/current benchmark research before choosing exact price points.
 - Use a first-time introductory offer only after the onboarding flow has shown value; display it with StoreKit/paywall terms, not vague marketing copy.
 - Use `list-subscription-price-points` to find price point IDs, then `configure-subscription-pricing` to dry-run and apply subscription prices/intro offers after explicit confirmation.
 - Include Privacy Policy and Terms of Use links in the App Store description, even if the app info localization already has a privacy URL.

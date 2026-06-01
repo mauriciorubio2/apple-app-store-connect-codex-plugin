@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,15 @@ REVENUECAT_AUTH_FAILURE_SIGNALS = [
     "access token has been revoked",
     "insufficient_scope",
     "resource_missing for the selected project",
+]
+PRICING_RESEARCH_REVIEW_INTERVAL_MONTHS = 6
+PRICING_RESEARCH_MAX_AGE_DAYS = 183
+DEFAULT_PRICING_RESEARCH_REVIEWED_ON = "2026-06-01"
+PRICING_RESEARCH_SOURCES = [
+    "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+    "https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026/",
+    "https://developer.apple.com/app-store/subscriptions/",
+    "https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/",
 ]
 
 TEXT_LIMITS = {
@@ -1015,13 +1025,214 @@ def build_subscription_intro_offer_body(
     return json_api_body("subscriptionIntroductoryOffers", attrs, relationships)
 
 
+def parse_iso_date(value: Any) -> date | None:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def numeric_price(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    text = str(value).strip()
+    text = re.sub(r"[^0-9.]", "", text)
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def entry_price(entry: dict[str, Any]) -> float | None:
+    for key in ("customerPrice", "benchmarkCustomerPrice", "price", "displayPrice"):
+        price = numeric_price(entry.get(key))
+        if price is not None:
+            return price
+    return None
+
+
+def pricing_research_config(config: dict[str, Any]) -> dict[str, Any]:
+    pricing = config.get("subscriptionPricing") or {}
+    return config.get("pricingResearch") or pricing.get("pricingResearch") or pricing.get("research") or {}
+
+
+def pricing_research_summary(config: dict[str, Any], today: date | None = None) -> dict[str, Any]:
+    today = today or date.today()
+    research = pricing_research_config(config)
+    reviewed_on_text = research.get("lastReviewedOn") or research.get("reviewedOn")
+    reviewed_on = parse_iso_date(reviewed_on_text)
+    interval_months = int(research.get("reviewIntervalMonths", PRICING_RESEARCH_REVIEW_INTERVAL_MONTHS) or 0)
+    interval_days = max(1, int(interval_months * 30.5))
+    age_days = (today - reviewed_on).days if reviewed_on else None
+    next_review_due = None
+    if reviewed_on:
+        next_review_due = reviewed_on.toordinal() + interval_days
+        next_review_due = date.fromordinal(next_review_due).isoformat()
+    return {
+        "lastReviewedOn": reviewed_on.isoformat() if reviewed_on else None,
+        "reviewIntervalMonths": interval_months,
+        "maxAgeDays": interval_days,
+        "ageDays": age_days,
+        "nextReviewDue": research.get("nextReviewDue") or next_review_due,
+        "stale": reviewed_on is None or bool(age_days is not None and age_days > interval_days),
+        "sources": as_list(research.get("sources")),
+        "requiresCurrentResearch": research.get("requiresCurrentResearch", True) is not False,
+    }
+
+
+def validate_pricing_research_freshness(
+    config: dict[str, Any],
+    issues: list[dict[str, str]],
+    today: date | None = None,
+) -> None:
+    subscriptions = as_list(config.get("subscriptions"))
+    if not subscriptions and not config.get("subscriptionPricing"):
+        return
+    research = pricing_research_config(config)
+    if not research:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "pricingResearch",
+                "message": "Add pricingResearch with lastReviewedOn, reviewIntervalMonths, sources, and benchmark notes so subscription pricing is refreshed at least every six months.",
+            }
+        )
+        return
+    summary = pricing_research_summary(config, today=today)
+    if not summary["lastReviewedOn"]:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "pricingResearch.lastReviewedOn",
+                "message": "Record the date subscription pricing research was last reviewed.",
+            }
+        )
+    elif summary["stale"]:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "pricingResearch.lastReviewedOn",
+                "message": "Subscription pricing research is older than the configured six-month refresh window. Re-check current RevenueCat/Apple pricing benchmarks before finalizing weekly, monthly, or yearly prices.",
+            }
+        )
+    if int(summary["reviewIntervalMonths"] or 0) > PRICING_RESEARCH_REVIEW_INTERVAL_MONTHS:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "pricingResearch.reviewIntervalMonths",
+                "message": "Pricing research should be refreshed every six months or sooner because subscription benchmarks and conversion patterns change.",
+            }
+        )
+    source_text = " ".join(str(source).lower() for source in summary["sources"])
+    if "revenuecat" not in source_text or "developer.apple.com" not in source_text:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "pricingResearch.sources",
+                "message": "Include current RevenueCat benchmark research plus Apple subscription/pricing documentation before locking subscription prices.",
+            }
+        )
+
+
+def validate_subscription_cadence_strategy(
+    config: dict[str, Any], issues: list[dict[str, str]]
+) -> None:
+    pricing = config.get("subscriptionPricing") or {}
+    entries = subscription_pricing_entries(config)
+    if not entries:
+        return
+    periods = {
+        str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper()
+        for entry in entries
+    }
+    custom_cadence_reason = str(pricing.get("customCadenceReason") or "").strip()
+    if "ONE_MONTH" not in periods and not custom_cadence_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.products",
+                "message": "Monthly remains the default comparison cadence for many subscription apps; omit it only with a custom cadence reason.",
+            }
+        )
+    if "ONE_YEAR" in periods:
+        yearly_entries = [
+            entry
+            for entry in entries
+            if str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper() == "ONE_YEAR"
+        ]
+        if not any(str(entry.get("role", "")).lower() in {"bestvalue", "best_value"} for entry in yearly_entries):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "subscriptionPricing.products",
+                    "message": "Label the annual plan as best value when the discount is real; yearly plans usually support stronger renewal and retention.",
+                }
+            )
+    if "ONE_WEEK" in periods:
+        weekly_entries = [
+            entry
+            for entry in entries
+            if str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper() == "ONE_WEEK"
+        ]
+        weekly_supported = bool(pricing.get("weeklyUseCase") or custom_cadence_reason)
+        for index, entry in enumerate(weekly_entries):
+            role = str(entry.get("role", "")).lower()
+            if role in {"primary", "default", "bestvalue", "best_value"} and not weekly_supported:
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "field": f"subscriptionPricing.products[{index}].role",
+                        "message": "Weekly pricing can convert in short-horizon or event-driven apps, but it is high-churn. Do not make it the primary/default path without a weeklyUseCase or customCadenceReason.",
+                    }
+                )
+        if "ONE_MONTH" not in periods or "ONE_YEAR" not in periods:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "subscriptionPricing.products",
+                    "message": "If offering weekly, also provide monthly and yearly options unless the app has an explicit short-term/event-only pricing strategy.",
+                }
+            )
+    monthly_price = next(
+        (
+            entry_price(entry)
+            for entry in entries
+            if str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper() == "ONE_MONTH"
+        ),
+        None,
+    )
+    yearly_price = next(
+        (
+            entry_price(entry)
+            for entry in entries
+            if str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper() == "ONE_YEAR"
+        ),
+        None,
+    )
+    if monthly_price and yearly_price:
+        annual_discount = round((1 - (yearly_price / (monthly_price * 12))) * 100)
+        if annual_discount < 30:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "subscriptionPricing.products",
+                    "message": "The annual plan discount is below 30% versus paying monthly for a year. Consider a stronger annual best-value anchor if margins allow.",
+                }
+            )
+
+
 def validate_subscription_pricing_strategy(
     config: dict[str, Any], issues: list[dict[str, str]]
 ) -> None:
     subscriptions = as_list(config.get("subscriptions"))
     pricing = config.get("subscriptionPricing") or {}
-    if not subscriptions:
+    if not subscriptions and not pricing:
         return
+    validate_pricing_research_freshness(config, issues)
     if not pricing:
         issues.append(
             {
@@ -1107,6 +1318,7 @@ def validate_subscription_pricing_strategy(
                     "message": "For price increases, decide whether to preserve existing subscriber prices and note that some increases may require subscriber consent.",
                 }
             )
+    validate_subscription_cadence_strategy(config, issues)
 
     offers = subscription_intro_offer_entries(config)
     if pricing.get("introOfferRecommended", True) and not offers:
@@ -1529,12 +1741,14 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
         "ok": not [issue for issue in issues if issue["severity"] == "error"],
         "issues": issues,
         "freeProAccessModel": free_pro_access_summary(config),
+        "pricingResearch": pricing_research_summary(config),
         "recommendations": [
             "Run access preflight first: App Store Connect must pass a read-only API probe and RevenueCat must pass the MCP list_projects probe before subscription automation.",
+            "Refresh subscription pricing research every six months; re-check current RevenueCat benchmarks and Apple pricing rules before finalizing weekly, monthly, and yearly prices.",
             "Keep the app download free when monetizing with subscriptions, then price subscription products separately.",
             "Default to a Free + Pro model where Free gives a complete 70-80% taste of useful functionality and Pro unlocks the remaining high-intent depth.",
             "Keep the app's core loop usable on Free; reserve Pro for unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization.",
-            "Use one subscription group for most apps; offer clear monthly/yearly choices and label annual as best value when the discount is real.",
+            "Use one subscription group for most apps; offer clear monthly/yearly choices, label annual as best value when the discount is real, and use weekly only for short-term or event-driven intent.",
             "Introduce the paywall after value-first onboarding, not on launch.",
             "Use StoreKit review prompts only after completed positive moments, with local cooldowns and blocked contexts.",
         ],
