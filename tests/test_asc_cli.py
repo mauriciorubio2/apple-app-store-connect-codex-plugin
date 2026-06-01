@@ -385,6 +385,81 @@ class AscCliValidationTests(unittest.TestCase):
         fields = {issue["field"] for issue in issues}
         self.assertIn("subscriptionPricing.products[0].role", fields)
 
+    def test_missing_default_weekly_cadence_warns_without_override_reason(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-month", "productId": "com.example.pro.monthly"}],
+            "pricingResearch": {
+                "lastReviewedOn": "2026-06-01",
+                "reviewIntervalMonths": 6,
+                "sources": [
+                    "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+                    "https://developer.apple.com/app-store/subscriptions/",
+                ],
+            },
+            "subscriptionPricing": {
+                "useSingleSubscriptionGroup": True,
+                "defaultCadences": ["ONE_WEEK", "ONE_MONTH", "ONE_YEAR"],
+                "products": [
+                    {
+                        "subscriptionId": "sub-month",
+                        "period": "ONE_MONTH",
+                        "role": "primary",
+                        "benchmarkCustomerPrice": "9.99",
+                        "pricePointId": "point-month",
+                    },
+                    {
+                        "subscriptionId": "sub-year",
+                        "period": "ONE_YEAR",
+                        "role": "bestValue",
+                        "benchmarkCustomerPrice": "29.99",
+                        "pricePointId": "point-year",
+                    },
+                ],
+            },
+        }
+        issues = []
+        cli.validate_subscription_pricing_strategy(config, issues)
+        self.assertTrue(any("ONE_WEEK" in issue["message"] for issue in issues))
+
+    def test_custom_cadence_reason_allows_omitting_weekly_default(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-month", "productId": "com.example.pro.monthly"}],
+            "pricingResearch": {
+                "lastReviewedOn": "2026-06-01",
+                "reviewIntervalMonths": 6,
+                "sources": [
+                    "https://www.revenuecat.com/state-of-subscription-apps-2025/",
+                    "https://developer.apple.com/app-store/subscriptions/",
+                ],
+            },
+            "subscriptionPricing": {
+                "useSingleSubscriptionGroup": True,
+                "defaultCadences": ["ONE_WEEK", "ONE_MONTH", "ONE_YEAR"],
+                "customCadenceReason": "This professional app has no short-term use case, so weekly is intentionally omitted.",
+                "products": [
+                    {
+                        "subscriptionId": "sub-month",
+                        "period": "ONE_MONTH",
+                        "role": "primary",
+                        "benchmarkCustomerPrice": "9.99",
+                        "pricePointId": "point-month",
+                    },
+                    {
+                        "subscriptionId": "sub-year",
+                        "period": "ONE_YEAR",
+                        "role": "bestValue",
+                        "benchmarkCustomerPrice": "29.99",
+                        "pricePointId": "point-year",
+                    },
+                ],
+            },
+        }
+        issues = []
+        cli.validate_subscription_pricing_strategy(config, issues)
+        self.assertFalse(any("ONE_WEEK" in issue["message"] for issue in issues))
+
     def test_annual_discount_below_threshold_warns(self):
         cli = load_cli()
         config = {

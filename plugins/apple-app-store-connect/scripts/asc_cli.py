@@ -75,6 +75,7 @@ FREE_ACCESS_DEFAULT_PERCENT = 75
 PRO_ACCESS_MIN_PERCENT = 20
 PRO_ACCESS_MAX_PERCENT = 30
 SUBSCRIPTION_PERIODS = {"ONE_WEEK", "ONE_MONTH", "TWO_MONTHS", "THREE_MONTHS", "SIX_MONTHS", "ONE_YEAR"}
+DEFAULT_SUBSCRIPTION_CADENCES = ["ONE_WEEK", "ONE_MONTH", "ONE_YEAR"]
 SUBSCRIPTION_OFFER_MODES = {"PAY_AS_YOU_GO", "PAY_UP_FRONT", "FREE_TRIAL"}
 SUBSCRIPTION_OFFER_DURATIONS = {
     "THREE_DAYS",
@@ -1150,6 +1151,31 @@ def validate_subscription_cadence_strategy(
         for entry in entries
     }
     custom_cadence_reason = str(pricing.get("customCadenceReason") or "").strip()
+    default_cadences = [
+        str(period).upper()
+        for period in as_list(pricing.get("defaultCadences") or DEFAULT_SUBSCRIPTION_CADENCES)
+        if str(period).strip()
+    ]
+    creator_can_override = pricing.get("creatorCanOverrideCadences", pricing.get("allowCadenceOverride", True))
+    if creator_can_override is False:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.creatorCanOverrideCadences",
+                "message": "Keep subscription cadence defaults flexible so builders can remove weekly, monthly, or yearly when their app strategy needs a different setup.",
+            }
+        )
+    missing_default_cadences = sorted(set(default_cadences) - periods)
+    if missing_default_cadences and not custom_cadence_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.products",
+                "message": "The plugin default subscription setup is weekly, monthly, and yearly. Add the missing cadence(s) "
+                + ", ".join(missing_default_cadences)
+                + " or set customCadenceReason when a different plan mix is intentional.",
+            }
+        )
     if "ONE_MONTH" not in periods and not custom_cadence_reason:
         issues.append(
             {
@@ -1748,7 +1774,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
             "Keep the app download free when monetizing with subscriptions, then price subscription products separately.",
             "Default to a Free + Pro model where Free gives a complete 70-80% taste of useful functionality and Pro unlocks the remaining high-intent depth.",
             "Keep the app's core loop usable on Free; reserve Pro for unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization.",
-            "Use one subscription group for most apps; offer clear monthly/yearly choices, label annual as best value when the discount is real, and use weekly only for short-term or event-driven intent.",
+            "Use one subscription group for most apps; default to weekly/monthly/yearly, label annual as best value when the discount is real, and let builders override cadences with a documented reason.",
             "Introduce the paywall after value-first onboarding, not on launch.",
             "Use StoreKit review prompts only after completed positive moments, with local cooldowns and blocked contexts.",
         ],

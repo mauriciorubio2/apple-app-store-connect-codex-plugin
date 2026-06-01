@@ -286,7 +286,7 @@
         "review screenshots",
         "submission"
       ],
-      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; monthly/yearly are the default plan structure for most apps, yearly should be a real best-value anchor, and weekly should be used only when short-horizon or event-driven intent is genuine."
+      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; weekly/monthly/yearly are the default plan cadences, builders can override the mix with a custom cadence reason, yearly should be a real best-value anchor, and weekly should reflect short-horizon or event-driven intent."
     },
     {
       "group": "Onboarding, paywall, and review prompts",

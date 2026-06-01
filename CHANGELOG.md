@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.8.0] - 2026-06-01
+
+- Made weekly, monthly, and yearly the default subscription cadence set across templates and validation.
+- Added `defaultCadences` and `creatorCanOverrideCadences` so builders can intentionally remove or change plan durations with `customCadenceReason`.
+- Updated the generic submission template to include a weekly product and RevenueCat weekly package by default.
+
 ## [1.7.0] - 2026-06-01
 
 - Added six-month subscription pricing research freshness checks so Codex warns when weekly/monthly/yearly pricing benchmarks need to be refreshed.

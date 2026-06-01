@@ -327,6 +327,7 @@ For subscriptions and paid features:
 - Default to a flexible Free + Pro model unless the creator explicitly wants another setup. Free should grant roughly 70-80% of useful functionality so users get a real product, while Pro should unlock the remaining 20-30% of high-intent depth.
 - Before creating or changing subscription products, entitlements, offerings, paywalls, or App Store Connect subscription pricing, verify both App Store Connect and RevenueCat access. Do not start the subscription setup while either token/key is revoked, unauthorized, missing, or under-scoped.
 - Refresh subscription pricing research every six months. Treat weekly/monthly/yearly price anchors as benchmark-driven starting points, not permanent truths.
+- Use weekly, monthly, and yearly as the default subscription cadence set. Keep `creatorCanOverrideCadences` true and use `customCadenceReason` when a builder intentionally removes or changes a cadence.
 - Keep the app's core loop available on Free: basic browsing, search, personalization, status/detail views, and a sensible number of tracked items should not be blocked by default.
 - Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, or an ad-free experience when relevant.
 - If an app needs a different split, keep the plugin flexible: adjust `freeProAccessModel.targetFreeAccessPercent`, `targetProAccessPercent`, pricing products, paywall triggers, and add `customAccessSplitReason`.

@@ -67,6 +67,7 @@
     "entitlementIdentifier": "pro",
     "offeringIdentifier": "default",
     "packages": [
+      "$rc_weekly",
       "$rc_monthly",
       "$rc_annual"
     ],
@@ -169,14 +170,31 @@
     "baseTerritory": "USA",
     "useSingleSubscriptionGroup": true,
     "introOfferRecommended": true,
-    "weeklyUseCase": "",
+    "defaultCadences": [
+      "ONE_WEEK",
+      "ONE_MONTH",
+      "ONE_YEAR"
+    ],
+    "creatorCanOverrideCadences": true,
+    "weeklyUseCase": "short-term, event-driven, or trial-adjacent premium intent",
     "customCadenceReason": "",
     "cadenceStrategy": {
+      "weekly": "short-term or event-driven entry plan",
       "monthly": "primary comparison plan",
-      "yearly": "best-value retention plan",
-      "weekly": "optional short-term/event-driven plan only"
+      "yearly": "best-value retention plan"
     },
     "products": [
+      {
+        "subscriptionId": "subscription-weekly-id",
+        "productId": "com.example.product.pro.weekly",
+        "period": "ONE_WEEK",
+        "role": "shortTerm",
+        "territory": "USA",
+        "benchmarkCustomerPrice": "4.99",
+        "pricePointId": "subscription-price-point-id",
+        "startDate": null,
+        "preserveCurrentPrice": false
+      },
       {
         "subscriptionId": "subscription-monthly-id",
         "productId": "com.example.product.pro.monthly",

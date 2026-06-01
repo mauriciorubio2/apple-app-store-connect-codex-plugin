@@ -177,7 +177,9 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscriptio
 
 `configure-free-download` handles only the app download price. `configure-subscription-pricing` handles subscription product prices and introductory offers. They are intentionally separate because App Store Connect models them separately.
 
-`plan-growth-strategy` also checks `pricingResearch`. If `lastReviewedOn` is missing or older than the configured six-month interval, Codex should refresh current pricing research before finalizing weekly, monthly, or yearly plan prices. The default benchmark anchors are intentionally starting points, not universal truth: weekly around `$4.99` only for short-term/event intent, monthly around `$9.99` as the main comparison plan, and yearly around `$29.99` as a clear best-value anchor when the discount is real.
+`plan-growth-strategy` also checks `pricingResearch`. If `lastReviewedOn` is missing or older than the configured six-month interval, Codex should refresh current pricing research before finalizing weekly, monthly, or yearly plan prices. The default cadence set is weekly + monthly + yearly, with benchmark anchors as starting points rather than universal truth: weekly around `$4.99` for short-term/event intent, monthly around `$9.99` as the main comparison plan, and yearly around `$29.99` as a clear best-value anchor when the discount is real.
+
+Builders can change the cadence setup. Keep `creatorCanOverrideCadences: true`, adjust `defaultCadences`/`products`, and add `customCadenceReason` when an app should omit weekly, monthly, or yearly, or use a different plan mix.
 
 Plan the next App Store version and build number:
 

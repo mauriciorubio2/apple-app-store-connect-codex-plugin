@@ -133,6 +133,12 @@
     "baseTerritory": "USA",
     "useSingleSubscriptionGroup": true,
     "introOfferRecommended": true,
+    "defaultCadences": [
+      "ONE_WEEK",
+      "ONE_MONTH",
+      "ONE_YEAR"
+    ],
+    "creatorCanOverrideCadences": true,
     "weeklyUseCase": "event-driven or short-horizon premium intent",
     "customCadenceReason": "",
     "cadenceStrategy": {
