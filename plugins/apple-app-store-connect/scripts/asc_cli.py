@@ -51,6 +51,11 @@ SUBSCRIPTION_DESCRIPTION_MARKERS = {
     "cancel": "cancel",
     "twenty_four_hours": "24 hours",
 }
+FREE_ACCESS_MIN_PERCENT = 70
+FREE_ACCESS_MAX_PERCENT = 80
+FREE_ACCESS_DEFAULT_PERCENT = 75
+PRO_ACCESS_MIN_PERCENT = 20
+PRO_ACCESS_MAX_PERCENT = 30
 SUBSCRIPTION_PERIODS = {"ONE_WEEK", "ONE_MONTH", "TWO_MONTHS", "THREE_MONTHS", "SIX_MONTHS", "ONE_YEAR"}
 SUBSCRIPTION_OFFER_MODES = {"PAY_AS_YOU_GO", "PAY_UP_FRONT", "FREE_TRIAL"}
 SUBSCRIPTION_OFFER_DURATIONS = {
@@ -77,6 +82,20 @@ BLOCKED_REVIEW_CONTEXTS = {
     "permission_prompt",
     "notification_permission",
     "user_tapped_rate_us",
+}
+EARLY_PAYWALL_TIMINGS = {"launch", "first_launch", "firstlaunch", "before_value", "beforevalue", "before_onboarding"}
+CORE_LOOP_LOCKED_MARKERS = {
+    "core loop",
+    "basic browse",
+    "basic browsing",
+    "basic search",
+    "basic results",
+    "basic schedule",
+    "first session",
+    "onboarding",
+    "main feed",
+    "primary workflow",
+    "all content",
 }
 
 SCREENSHOT_MIN = 1
@@ -1154,6 +1173,176 @@ def normalize_context(value: Any) -> str:
     return str(value or "").strip().replace("-", "_").replace(" ", "_")
 
 
+def percent_or_none(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    text = str(value).strip()
+    if text.endswith("%"):
+        text = text[:-1]
+    try:
+        return int(round(float(text)))
+    except (TypeError, ValueError):
+        return None
+
+
+def free_pro_access_summary(config: dict[str, Any]) -> dict[str, Any]:
+    model = config.get("freeProAccessModel") or {}
+    target_free = percent_or_none(
+        model.get("targetFreeAccessPercent", model.get("freeAccessPercent", FREE_ACCESS_DEFAULT_PERCENT))
+    )
+    if target_free is None:
+        target_free = FREE_ACCESS_DEFAULT_PERCENT
+    target_pro = percent_or_none(model.get("targetProAccessPercent", model.get("proAccessPercent")))
+    if target_pro is None:
+        target_pro = max(0, 100 - target_free)
+    free_tier = model.get("freeTier") or {}
+    pro_tier = model.get("proTier") or {}
+    paywall = model.get("paywall") or {}
+    creator_override = model.get("creatorCanOverride", model.get("flexibleForCreator", True))
+    return {
+        "enabled": model.get("enabled", True) is not False,
+        "defaultPattern": "free-plus-pro",
+        "targetFreeAccessPercent": target_free,
+        "targetProAccessPercent": target_pro,
+        "recommendedFreeRange": f"{FREE_ACCESS_MIN_PERCENT}-{FREE_ACCESS_MAX_PERCENT}",
+        "recommendedProRange": f"{PRO_ACCESS_MIN_PERCENT}-{PRO_ACCESS_MAX_PERCENT}",
+        "creatorCanOverride": creator_override is not False,
+        "customAccessSplitReason": bool(
+            str(model.get("customAccessSplitReason") or model.get("overrideReason") or "").strip()
+        ),
+        "freeTierFeatureCount": len([item for item in as_list(free_tier.get("features")) if str(item).strip()]),
+        "proTierFeatureCount": len([item for item in as_list(pro_tier.get("features")) if str(item).strip()]),
+        "locksCoreLoop": bool(pro_tier.get("locksCoreLoop")),
+        "paywallTiming": paywall.get("timing") or paywall.get("paywallTiming") or (config.get("onboarding") or {}).get("paywallTiming"),
+    }
+
+
+def validate_free_pro_access_model(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    has_subscription_strategy = bool(as_list(config.get("subscriptions")) or config.get("subscriptionPricing"))
+    model = config.get("freeProAccessModel") or {}
+    if not has_subscription_strategy and not model:
+        return
+    if not model:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel",
+                "message": "Subscription apps should default to a Free + Pro access model: Free gives users a complete 70-80% taste of the app, while Pro unlocks the remaining high-intent features.",
+            }
+        )
+        return
+
+    if model.get("enabled", True) is False:
+        return
+
+    custom_reason = str(model.get("customAccessSplitReason") or model.get("overrideReason") or "").strip()
+    target_free = percent_or_none(model.get("targetFreeAccessPercent", model.get("freeAccessPercent")))
+    target_pro = percent_or_none(model.get("targetProAccessPercent", model.get("proAccessPercent")))
+    if target_free is None:
+        target_free = FREE_ACCESS_DEFAULT_PERCENT
+    if target_pro is None:
+        target_pro = 100 - target_free
+
+    if not (0 <= target_free <= 100):
+        issues.append(
+            {
+                "severity": "error",
+                "field": "freeProAccessModel.targetFreeAccessPercent",
+                "message": "Free access percent must be between 0 and 100.",
+            }
+        )
+    elif not (FREE_ACCESS_MIN_PERCENT <= target_free <= FREE_ACCESS_MAX_PERCENT) and not custom_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.targetFreeAccessPercent",
+                "message": "The default subscription strategy should keep roughly 70-80% of useful app functionality free; add customAccessSplitReason when a different split is intentional.",
+            }
+        )
+    if target_pro is not None and target_free is not None and abs((target_free + target_pro) - 100) > 1:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.targetProAccessPercent",
+                "message": "Free and Pro access percentages should add up to approximately 100.",
+            }
+        )
+    if model.get("creatorCanOverride", model.get("flexibleForCreator", True)) is False:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.creatorCanOverride",
+                "message": "Keep the Free + Pro defaults overrideable so app creators can adapt pricing and access to their product.",
+            }
+        )
+
+    free_tier = model.get("freeTier") or {}
+    pro_tier = model.get("proTier") or {}
+    free_features = [str(item).strip() for item in as_list(free_tier.get("features")) if str(item).strip()]
+    pro_features = [str(item).strip() for item in as_list(pro_tier.get("features")) if str(item).strip()]
+    if not free_features:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.freeTier.features",
+                "message": "List the core features users receive for free; the Free tier should feel like a useful product, not a locked demo.",
+            }
+        )
+    elif len(free_features) < 3 and not custom_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.freeTier.features",
+                "message": "The Free tier should expose enough real capability to represent the promised 70-80% app taste.",
+            }
+        )
+    if not pro_features:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.proTier.features",
+                "message": "List the high-intent features reserved for Pro, such as unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization.",
+            }
+        )
+
+    locked_feature_text = " ".join(str(item).lower() for item in as_list(pro_tier.get("lockedFeatureTypes")))
+    if pro_tier.get("locksCoreLoop") is True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.proTier.locksCoreLoop",
+                "message": "Do not lock the app's core loop by default; reserve Pro for deeper, unlimited, or convenience features after users understand the value.",
+            }
+        )
+    elif locked_feature_text and any(marker in locked_feature_text for marker in CORE_LOOP_LOCKED_MARKERS) and not custom_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.proTier.lockedFeatureTypes",
+                "message": "The locked Pro feature list appears to include core functionality; keep basic browse/search/view/use flows available on Free unless a custom split is intentional.",
+            }
+        )
+
+    paywall = model.get("paywall") or {}
+    timing = normalize_context(paywall.get("timing") or paywall.get("paywallTiming") or (config.get("onboarding") or {}).get("paywallTiming"))
+    if timing in EARLY_PAYWALL_TIMINGS:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.paywall.timing",
+                "message": "Default paywall timing should come after personalized value or a natural Pro feature tap, not before the user experiences the Free product.",
+            }
+        )
+    if not as_list(paywall.get("triggers")):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.paywall.triggers",
+                "message": "Define paywall triggers such as reaching a generous free limit or tapping a clearly labeled Pro feature.",
+            }
+        )
+
+
 def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
     policy = config.get("reviewPromptPolicy") or {}
     if not policy:
@@ -1241,14 +1430,18 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     validate_subscription_pricing_strategy(config, issues)
     validate_onboarding_strategy(config, issues)
+    validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
     pricing_entries = subscription_pricing_entries(config)
     intro_offers = subscription_intro_offer_entries(config)
     return {
         "ok": not [issue for issue in issues if issue["severity"] == "error"],
         "issues": issues,
+        "freeProAccessModel": free_pro_access_summary(config),
         "recommendations": [
             "Keep the app download free when monetizing with subscriptions, then price subscription products separately.",
+            "Default to a Free + Pro model where Free gives a complete 70-80% taste of useful functionality and Pro unlocks the remaining high-intent depth.",
+            "Keep the app's core loop usable on Free; reserve Pro for unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization.",
             "Use one subscription group for most apps; offer clear monthly/yearly choices and label annual as best value when the discount is real.",
             "Introduce the paywall after value-first onboarding, not on launch.",
             "Use StoreKit review prompts only after completed positive moments, with local cooldowns and blocked contexts.",
@@ -1490,6 +1683,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
 
     validate_subscription_pricing_strategy(config, issues)
     validate_onboarding_strategy(config, issues)
+    validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
 
     ip_review = config.get("ipReview") or {}
@@ -1683,6 +1877,7 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "resource": "subscriptionPrices/subscriptionIntroductoryOffers",
                 "priceActionCount": len(growth_plan["plannedPricingActions"]),
                 "introOfferActionCount": len(growth_plan["plannedIntroOfferActions"]),
+                "freeProAccessTarget": growth_plan["freeProAccessModel"]["targetFreeAccessPercent"],
                 "tool": "configure-subscription-pricing",
             }
         )
@@ -2206,7 +2401,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     growth = sub.add_parser(
         "plan-growth-strategy",
-        help="Validate subscription pricing, onboarding, and StoreKit review trigger strategy.",
+        help="Validate subscription pricing, Free/Pro access, onboarding, paywall timing, and StoreKit review trigger strategy.",
     )
     add_common_config_argument(growth)
 

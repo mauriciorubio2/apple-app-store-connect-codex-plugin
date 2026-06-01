@@ -80,14 +80,14 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-downlo
   --config appstore-submission.json --yes
 ```
 
-8. For subscription apps, plan pricing, onboarding, and review triggers before final metadata:
+8. For subscription apps, plan pricing, the Free/Pro access split, onboarding, paywall timing, and review triggers before final metadata:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-growth-strategy \
   --config appstore-submission.json
 ```
 
-Use `assets/subscription-onboarding-review-template.json` as the default pattern for event-driven apps such as sports, tournament, or countdown trackers.
+Use `assets/subscription-onboarding-review-template.json` as the default pattern for event-driven apps such as sports, tournament, or countdown trackers. It defaults to Free + Pro, with Free granting roughly 70-80% of useful app functionality and Pro reserving the remaining high-intent depth.
 
 ## Metadata Guidance
 
@@ -145,7 +145,7 @@ Apple allows one to ten screenshots per supported device size/localization. The 
 - Make one benefit unmistakable per screenshot and align it with high-intent ASO/Apple Ads search terms.
 - Keep overlay copy short enough to scan, with a sales-focused header and optional CTA such as "Free to download", "Track every kickoff", or "Start free trial".
 - Include at least one dark-mode screenshot if dark mode is a meaningful part of the experience.
-- If subscriptions or paid features are shown, mark them clearly with labels such as "Pro feature", "Included with Pro", or the subscription tier name.
+- For subscription apps, make the Free experience look useful in the first screenshots and show at least one Pro benefit as an upgrade. If subscriptions or paid features are shown, mark them clearly with labels such as "Pro feature", "Included with Pro", or the subscription tier name.
 - Do not imply a paid feature is free. Do not hide terms, paywall state, or subscription context.
 
 ## Screenshot Recipe
@@ -315,6 +315,10 @@ The confirmed apply finds the base territory's free price point, writes an app p
 
 For subscriptions and paid features:
 
+- Default to a flexible Free + Pro model unless the creator explicitly wants another setup. Free should grant roughly 70-80% of useful functionality so users get a real product, while Pro should unlock the remaining 20-30% of high-intent depth.
+- Keep the app's core loop available on Free: basic browsing, search, personalization, status/detail views, and a sensible number of tracked items should not be blocked by default.
+- Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, or an ad-free experience when relevant.
+- If an app needs a different split, keep the plugin flexible: adjust `freeProAccessModel.targetFreeAccessPercent`, `targetProAccessPercent`, pricing products, paywall triggers, and add `customAccessSplitReason`.
 - Include localized subscription names and descriptions.
 - Include App Review screenshots for the paywall or purchased feature.
 - Prefer one subscription group for most apps so users cannot accidentally hold multiple active subscriptions.
@@ -350,6 +354,7 @@ For subscription apps, especially event-driven apps like World Cup-style tracker
 
 - Let users choose favorite teams, tournaments, groups, or notification preferences before the paywall.
 - Show personalized value before asking for payment: a tailored schedule, match center, countdown, reminders, standings, or tracked items.
+- Let users continue for free after onboarding whenever sensible. The first paywall should appear after personalized value, after a generous free limit, or when the user taps a clearly labeled Pro feature.
 - Ask notification permission only after explaining what the alert does.
 - Show Restore Purchases plus Terms of Use and Privacy Policy links wherever the paywall appears.
 - Do not call StoreKit `requestReview` on launch, during onboarding, on a paywall, after a purchase prompt, after cancellation, after an error, after an offline failure, or as a direct result of tapping a "Rate us" button.

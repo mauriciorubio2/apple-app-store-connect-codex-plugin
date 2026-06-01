@@ -38,6 +38,60 @@
     "availability": "allCountries",
     "availableInNewTerritories": true
   },
+  "freeProAccessModel": {
+    "default": true,
+    "enabled": true,
+    "creatorCanOverride": true,
+    "targetFreeAccessPercent": 75,
+    "targetProAccessPercent": 25,
+    "customAccessSplitReason": "",
+    "freeTier": {
+      "name": "Free",
+      "positioning": "A complete taste of the app's core value.",
+      "features": [
+        "Use the main planning, browsing, or tracking workflow",
+        "Create and manage a sensible number of core items",
+        "View basic status, details, reminders, or progress",
+        "Use onboarding personalization and core search/filter tools",
+        "Continue using the app without subscribing"
+      ],
+      "limits": [
+        "Limited number of saved favorites, tracked items, routines, projects, or alerts",
+        "Limited history, advanced insights, exports, widgets, or premium personalization"
+      ]
+    },
+    "proTier": {
+      "name": "Pro",
+      "positioning": "Depth and convenience for high-intent users.",
+      "features": [
+        "Unlimited saved items, routines, projects, favorites, or tracked alerts",
+        "Advanced reminders, notifications, widgets, or live/lock-screen experiences",
+        "Deeper analytics, history, archives, exports, or comparisons",
+        "Premium personalization, themes, automations, or power-user workflows"
+      ],
+      "lockedFeatureTypes": [
+        "unlimited usage",
+        "advanced alerts",
+        "widgets or live activities",
+        "advanced history and insights",
+        "premium personalization"
+      ],
+      "locksCoreLoop": false
+    },
+    "paywall": {
+      "timing": "afterFirstPersonalizedValue",
+      "triggers": [
+        "user reaches a generous free limit",
+        "user taps a clearly labeled Pro feature",
+        "user asks for advanced alerts, widgets, history, exports, or deeper insights"
+      ],
+      "principles": [
+        "keep a visible free path when possible",
+        "explain Pro value in app-specific terms",
+        "show trial, renewal, cancellation, restore, terms, and privacy context"
+      ]
+    }
+  },
   "subscriptionPricing": {
     "appDownloadModel": "freeWithSubscription",
     "baseTerritory": "USA",

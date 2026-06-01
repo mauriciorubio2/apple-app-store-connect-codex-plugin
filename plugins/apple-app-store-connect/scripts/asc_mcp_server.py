@@ -64,7 +64,7 @@ TOOLS = [
     },
     {
         "name": "asc_plan_growth_strategy",
-        "description": "Validate subscription pricing, value-first onboarding, and StoreKit review prompt trigger strategy.",
+        "description": "Validate subscription pricing, Free/Pro access, value-first onboarding, paywall timing, and StoreKit review prompt trigger strategy.",
         "inputSchema": {
             "type": "object",
             "properties": {"configPath": {"type": "string"}},
@@ -406,7 +406,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.4.0"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.5.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

@@ -1,4 +1,59 @@
 {
+  "freeProAccessModel": {
+    "default": true,
+    "enabled": true,
+    "creatorCanOverride": true,
+    "targetFreeAccessPercent": 75,
+    "targetProAccessPercent": 25,
+    "customAccessSplitReason": "",
+    "freeTier": {
+      "name": "Free",
+      "positioning": "Users get a real 70-80% taste of the app before paying.",
+      "features": [
+        "Choose favorite teams, topics, groups, tournaments, or goals",
+        "View the personalized hub, schedule, countdown, results, or status",
+        "Track a sensible number of favorites or reminders",
+        "Use basic search, filters, and detail screens",
+        "Keep using the core app without subscribing"
+      ],
+      "limits": [
+        "Limited favorites, tracked items, or active reminders",
+        "Limited advanced alerts, widgets, live activities, archives, exports, and deep analytics"
+      ]
+    },
+    "proTier": {
+      "name": "Pro",
+      "positioning": "Power-user depth for people who want more than the core experience.",
+      "features": [
+        "Unlimited favorites, tracked items, alerts, or reminders",
+        "Advanced notification controls and time-sensitive reminders",
+        "Widgets, live activities, lock-screen experiences, or premium glanceables",
+        "Historical archives, advanced stats, exports, comparisons, or deeper insights",
+        "Premium personalization, themes, or ad-free experience when relevant"
+      ],
+      "lockedFeatureTypes": [
+        "unlimited tracking",
+        "advanced alerts",
+        "widgets and live activities",
+        "advanced history and analytics",
+        "premium personalization"
+      ],
+      "locksCoreLoop": false
+    },
+    "paywall": {
+      "timing": "afterFirstPersonalizedValue",
+      "triggers": [
+        "user reaches a generous free tracking or reminder limit",
+        "user taps a clearly labeled Pro alert, widget, history, or analytics feature",
+        "user shows intent by personalizing favorites or checking repeated detail views"
+      ],
+      "principles": [
+        "never block first-run personalization",
+        "show useful personalized content before the paywall",
+        "keep restore purchases, terms, privacy, trial, renewal, and cancellation context visible"
+      ]
+    }
+  },
   "subscriptionPricing": {
     "appDownloadModel": "freeWithSubscription",
     "baseTerritory": "USA",

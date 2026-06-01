@@ -357,6 +357,120 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertIn("reviewPromptPolicy.positiveMomentTriggers[0]", fields)
         self.assertIn("reviewPromptPolicy.minimumSessions", fields)
 
+    def test_growth_strategy_accepts_default_free_pro_access_model(self):
+        cli = load_cli()
+        config = json.loads(
+            (ROOT / "plugins/apple-app-store-connect/assets/subscription-onboarding-review-template.json").read_text()
+        )
+        config["subscriptions"] = [
+            {"id": "monthly-subscription-id", "productId": "com.example.app.pro.monthly"},
+            {"id": "yearly-subscription-id", "productId": "com.example.app.pro.yearly"},
+        ]
+        config["pricingAvailability"] = {"downloadPrice": "0.00"}
+        result = cli.plan_growth_strategy(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["freeProAccessModel"]["targetFreeAccessPercent"], 75)
+        self.assertEqual(result["freeProAccessModel"]["targetProAccessPercent"], 25)
+        self.assertNotIn("freeProAccessModel.targetFreeAccessPercent", fields)
+
+    def test_growth_strategy_warns_when_free_access_split_is_too_low(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-123", "productId": "com.example.pro.monthly"}],
+            "subscriptionPricing": {"useSingleSubscriptionGroup": True},
+            "freeProAccessModel": {
+                "targetFreeAccessPercent": 50,
+                "freeTier": {"features": ["View dashboard", "Search content", "Save one item"]},
+                "proTier": {"features": ["Everything else"], "lockedFeatureTypes": ["advanced alerts"]},
+                "paywall": {"timing": "afterFirstPersonalizedValue", "triggers": ["user taps Pro feature"]},
+            },
+            "onboarding": {
+                "collectsPreferences": True,
+                "paywallTiming": "afterFirstPersonalizedValue",
+                "restorePurchasesVisible": True,
+                "termsAndPrivacyVisibleOnPaywall": True,
+            },
+            "reviewPromptPolicy": {
+                "usesStoreKitRequestReview": True,
+                "minimumDaysSinceInstall": 3,
+                "minimumSessions": 3,
+                "localCooldownDays": 120,
+                "positiveMomentTriggers": [{"event": "completed_goal", "afterSuccessfulUserOutcome": True}],
+                "blockedContexts": ["launch", "onboarding", "paywall", "error"],
+            },
+        }
+        result = cli.plan_growth_strategy(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertIn("freeProAccessModel.targetFreeAccessPercent", fields)
+
+    def test_growth_strategy_allows_custom_free_pro_access_split_with_reason(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-123", "productId": "com.example.pro.monthly"}],
+            "subscriptionPricing": {"useSingleSubscriptionGroup": True},
+            "freeProAccessModel": {
+                "targetFreeAccessPercent": 55,
+                "targetProAccessPercent": 45,
+                "customAccessSplitReason": "The app is a professional dataset tool with licensed Pro-only datasets.",
+                "freeTier": {"features": ["Browse sample data", "Search examples", "Save one project"]},
+                "proTier": {"features": ["Licensed datasets", "Exports", "Team workflows"]},
+                "paywall": {"timing": "afterFirstPersonalizedValue", "triggers": ["user taps licensed dataset"]},
+            },
+            "onboarding": {
+                "collectsPreferences": True,
+                "paywallTiming": "afterFirstPersonalizedValue",
+                "restorePurchasesVisible": True,
+                "termsAndPrivacyVisibleOnPaywall": True,
+            },
+            "reviewPromptPolicy": {
+                "usesStoreKitRequestReview": True,
+                "minimumDaysSinceInstall": 3,
+                "minimumSessions": 3,
+                "localCooldownDays": 120,
+                "positiveMomentTriggers": [{"event": "completed_goal", "afterSuccessfulUserOutcome": True}],
+                "blockedContexts": ["launch", "onboarding", "paywall", "error"],
+            },
+        }
+        result = cli.plan_growth_strategy(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertNotIn("freeProAccessModel.targetFreeAccessPercent", fields)
+        self.assertTrue(result["freeProAccessModel"]["customAccessSplitReason"])
+
+    def test_growth_strategy_warns_when_pro_locks_core_loop(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-123", "productId": "com.example.pro.monthly"}],
+            "subscriptionPricing": {"useSingleSubscriptionGroup": True},
+            "freeProAccessModel": {
+                "targetFreeAccessPercent": 75,
+                "freeTier": {"features": ["Open the app", "See preview", "Create account"]},
+                "proTier": {
+                    "features": ["Browse the app"],
+                    "lockedFeatureTypes": ["core loop"],
+                    "locksCoreLoop": True,
+                },
+                "paywall": {"timing": "afterFirstPersonalizedValue", "triggers": ["user taps Pro feature"]},
+            },
+            "onboarding": {
+                "collectsPreferences": True,
+                "paywallTiming": "afterFirstPersonalizedValue",
+                "restorePurchasesVisible": True,
+                "termsAndPrivacyVisibleOnPaywall": True,
+            },
+            "reviewPromptPolicy": {
+                "usesStoreKitRequestReview": True,
+                "minimumDaysSinceInstall": 3,
+                "minimumSessions": 3,
+                "localCooldownDays": 120,
+                "positiveMomentTriggers": [{"event": "completed_goal", "afterSuccessfulUserOutcome": True}],
+                "blockedContexts": ["launch", "onboarding", "paywall", "error"],
+            },
+        }
+        result = cli.plan_growth_strategy(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertIn("freeProAccessModel.proTier.locksCoreLoop", fields)
+
     def test_growth_strategy_template_is_valid(self):
         cli = load_cli()
         config = json.loads(

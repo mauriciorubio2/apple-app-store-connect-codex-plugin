@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.5.0] - 2026-06-01
+
+- Added a flexible `freeProAccessModel` default for subscription apps, targeting 70-80% useful Free functionality and 20-30% high-intent Pro depth.
+- Added validation and growth-plan output for Free/Pro access split, creator override rationale, core-loop gating, and paywall trigger timing.
+- Updated subscription/onboarding templates, release guidance, field map, and README to apply the World Cup Fever-style Free + Pro subscription pattern by default.
+
 ## [1.4.0] - 2026-06-01
 
 - Added subscription pricing strategy support with dry-run planning, App Store Connect price point guidance, and confirmed `subscriptionPrices`/introductory-offer creation.

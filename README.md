@@ -21,6 +21,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
 - Plan and apply subscription product prices and introductory offers when App Store Connect price point IDs are supplied.
+- Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
 - Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback and optional automatic versioning.
@@ -45,6 +46,8 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 - [Apple Ads custom product pages API](https://developer.apple.com/documentation/apple_search_ads/custom_product_pages)
 - [Auto-renewable subscriptions](https://developer.apple.com/app-store/subscriptions/)
 - [Manage pricing for auto-renewable subscriptions](https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/)
+- [Set up introductory offers for auto-renewable subscriptions](https://developer.apple.com/help/app-store-connect/manage-subscriptions/set-up-introductory-offers-for-auto-renewable-subscriptions/)
+- [Product page optimization](https://developer.apple.com/app-store/product-page-optimization/)
 - [Requesting App Store reviews](https://developer.apple.com/documentation/storekit/requesting_app_store_reviews/)
 
 ## Credentials
@@ -131,7 +134,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-free-downlo
   --yes
 ```
 
-Plan subscription pricing, onboarding, and review prompt triggers:
+Plan subscription pricing, Free/Pro access, onboarding, paywall timing, and review prompt triggers:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-growth-strategy \
@@ -210,9 +213,13 @@ Apple separates the user-facing App Store version from the build iteration. `CFB
 
 The plugin can infer the next values from Xcode `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`, literal `Info.plist` values, git history, and an optional `--iteration-count`. The default `auto` release level uses git messages conservatively: breaking-change markers become major bumps, conventional `feat:` commits become minor bumps, and other release builds become patch bumps. Build numbers always increment, using the provided iteration count when available.
 
-## Subscription Onboarding And Reviews
+## Subscription Access, Onboarding, And Reviews
 
-The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, monthly plus annual options, a first-time trial where appropriate, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
+The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, monthly plus annual options, a first-time trial where appropriate, a flexible Free + Pro access model, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
+
+By default, `freeProAccessModel` gives users a complete Free product experience with roughly 70-80% of useful functionality available before purchase. Pro should reserve the remaining high-intent 20-30%: unlimited usage, advanced alerts, widgets or live activities, deeper history/analytics, exports, premium personalization, themes, automations, or other power-user depth. The core loop should stay usable on Free so users get a real taste of the app.
+
+Creators can still change the setup. Set `creatorCanOverride` to true, adjust `targetFreeAccessPercent`/`targetProAccessPercent`, and add `customAccessSplitReason` when a different access split or pricing model is intentional.
 
 For review prompts, the plugin validates that `requestReview` is not tied to launch, onboarding, paywall, purchase, cancellation, error, permission, or direct "rate us" button contexts. Use a manual App Store write-review link for explicit user-initiated review actions.
 

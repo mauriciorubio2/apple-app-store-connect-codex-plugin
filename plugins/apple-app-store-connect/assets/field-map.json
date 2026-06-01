@@ -273,14 +273,18 @@
       ],
       "automatableFields": [
         "value-first onboarding checklist",
+        "default Free + Pro access split",
+        "70-80% Free access target",
+        "creator override rationale for custom subscription access",
         "paywall timing policy",
+        "paywall trigger policy",
         "restore purchases visibility",
         "terms/privacy paywall visibility",
         "positive review prompt triggers",
         "blocked review prompt contexts",
         "local review prompt cooldown"
       ],
-      "notes": "Apple controls whether the system rating prompt is displayed. The plugin validates trigger policy so requestReview is used after positive non-interruptive outcomes, not launch, onboarding, paywall, purchase, cancellation, or error flows."
+      "notes": "The plugin defaults subscription apps to Free + Pro: roughly 70-80% of useful functionality remains free, while Pro unlocks high-intent depth such as unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization. Creators can override the split with an explicit rationale. Apple controls whether the system rating prompt is displayed; the plugin validates trigger policy so requestReview is used after positive non-interruptive outcomes, not launch, onboarding, paywall, purchase, cancellation, or error flows."
     },
     {
       "group": "Custom product pages and product page optimization",
@@ -326,7 +330,7 @@
     "description": "Lead with the strongest benefit in the first sentence, then use concise feature bullets. Avoid prices and keyword stuffing.",
     "keywords": "Use relevant comma-separated terms, avoid duplicates, category names, competitor names, trademarks, offensive terms, and spaces after commas.",
     "promotionalText": "Use for current news or offers, not search ranking keywords.",
-    "screenshots": "Make the first one to three images explain the app's core value. Use one benefit per screenshot. Mark subscription or paid-only features clearly.",
+    "screenshots": "Make the first one to three images explain the app's core value. Use one benefit per screenshot. Show the Free product as genuinely useful, and mark subscription or paid-only features clearly.",
     "customProductPages": "Match screenshots, promo text, and keywords to a specific ad group, audience, feature, or seasonal intent."
   }
 }
