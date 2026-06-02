@@ -43,6 +43,38 @@ def hex_color(value: str) -> tuple[int, int, int]:
     return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
 
 
+def mix_color(
+    a: tuple[int, int, int],
+    b: tuple[int, int, int],
+    ratio: float,
+) -> tuple[int, int, int]:
+    return tuple(int(a[i] + (b[i] - a[i]) * ratio) for i in range(3))
+
+
+def draw_background_art(
+    draw: Any,
+    width: int,
+    height: int,
+    background: tuple[int, int, int],
+    accent: tuple[int, int, int],
+) -> None:
+    """Add simple branded color fields behind the app capture."""
+    bright = mix_color(background, (255, 255, 255), 0.28)
+    deep = mix_color(accent, (0, 0, 0), 0.30)
+    warm = mix_color(background, accent, 0.35)
+    draw.ellipse((-width * 0.18, height * 0.07, width * 1.14, height * 0.38), fill=bright)
+    draw.ellipse((width * 0.18, height * 0.28, width * 1.24, height * 0.66), fill=warm)
+    draw.polygon(
+        [
+            (0, int(height * 0.50)),
+            (width, int(height * 0.61)),
+            (width, height),
+            (0, height),
+        ],
+        fill=deep,
+    )
+
+
 def font(size: int, bold: bool = False):
     _, _, ImageFont = load_pillow()
     candidates = [
@@ -107,17 +139,25 @@ def render_one(config: dict[str, Any], screen: dict[str, Any], output_dir: Path)
     muted_color = hex_color(screen.get("mutedColor") or config.get("mutedColor", "#4B5563"))
     cta_text_color = hex_color(screen.get("ctaTextColor") or config.get("ctaTextColor", "#FFFFFF"))
 
+    if not screen.get("headline"):
+        raise ValueError("Each screenshot requires a big, sales-focused headline.")
+    if config.get("requireCTA", True) and not screen.get("cta"):
+        raise ValueError("Each screenshot requires a visible CTA pill. Set requireCTA=false only for non-marketing diagnostics.")
+
     canvas = Image.new("RGB", (width, height), background)
     draw = ImageDraw.Draw(canvas)
+    if (screen.get("backgroundArt") or config.get("backgroundArt", "soft-waves")) != "none":
+        draw_background_art(draw, width, height, background, accent)
 
     margin = int(width * 0.08)
     top = int(height * 0.07)
     max_text_width = width - margin * 2
 
-    headline_font = font(max(54, int(width * 0.075)), bold=True)
+    headline_font = font(max(64, int(width * 0.086)), bold=True)
     sub_font = font(max(34, int(width * 0.036)))
     badge_font = font(max(26, int(width * 0.032)), bold=True)
     cta_font = font(max(28, int(width * 0.034)), bold=True)
+    cta_note_font = font(max(24, int(width * 0.029)), bold=True)
 
     y = top
     for line in wrap_text(draw, screen["headline"], headline_font, max_text_width):
@@ -142,6 +182,10 @@ def render_one(config: dict[str, Any], screen: dict[str, Any], output_dir: Path)
             int(height * 0.009),
         )
         y = cta_box[3]
+        if screen.get("ctaNote"):
+            y += int(height * 0.008)
+            draw.text((margin, y), screen["ctaNote"], font=cta_note_font, fill=muted_color)
+            y += int(cta_note_font.size * 1.2)
 
     if screen.get("paid"):
         badge = screen.get("paidBadge") or config.get("paidBadge", "Pro")

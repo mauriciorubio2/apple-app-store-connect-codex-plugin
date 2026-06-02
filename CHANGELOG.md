@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [1.9.0] - 2026-06-02
+
+- Added the Day app launch defaults: weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` Pro plans, each with a 14-day free trial unless builders record an intentional override.
+- Added paywall defaults and validation for `Start 14-day free trial` plus `✓ No payment due now`, only when StoreKit or RevenueCat confirms a real introductory offer.
+- Strengthened release readiness guidance so "ready for submission" means the build is uploaded, processed, selected, and paired with complete metadata, screenshots, pricing, subscriptions, and review details.
+- Added Xcode `destination=upload` as a documented fallback when the Build Uploads API or local Transporter path fails.
+- Improved screenshot recipes and rendering so App Store screenshots require big headlines, visible CTAs, colorful branded backgrounds, Pro labels, and optional CTA notes.
+
 ## [1.8.0] - 2026-06-01
 
 - Made weekly, monthly, and yearly the default subscription cadence set across templates and validation.

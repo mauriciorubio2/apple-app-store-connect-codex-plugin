@@ -96,7 +96,20 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan-growth-strategy 
 
 Use `assets/subscription-onboarding-review-template.json` as the default pattern for event-driven apps such as sports, tournament, or countdown trackers. It defaults to Free + Pro, with Free granting roughly 70-80% of useful app functionality and Pro reserving the remaining high-intent depth.
 
+The default subscription launch pattern is a free-download app with weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` Pro plans, each with a 14-day free trial for eligible first-time subscribers. Builders can override any cadence, price, or trial by recording the rationale in `customCadenceReason` or `customIntroOfferReason`.
+
 If `plan-growth-strategy` reports stale pricing research, use web research before recommending final prices. Prefer current RevenueCat State of Subscription Apps benchmarks and Apple subscription/pricing docs, then update `pricingResearch.lastReviewedOn`, `nextReviewDue`, `sources`, and benchmark notes.
+
+## Policy Source Checks
+
+Before declaring a subscription app ready for upload or App Review, cross-check the current Apple documentation rather than relying on memory. At minimum, review these source categories and record the review date in the submission notes or local planning file:
+
+- App Store Review Guidelines for in-app purchase, auto-renewable subscriptions, app completeness, metadata accuracy, privacy, and permission use.
+- App Store Connect subscription help for subscription groups, product metadata, pricing, review screenshots, and first-time in-app purchase submission.
+- StoreKit documentation for product metadata, purchase state, entitlement checks, transaction updates, and restore-purchase flows.
+- Human Interface Guidelines for onboarding, permission timing, ratings/reviews, and avoiding disruptive prompts.
+
+If Apple guidance has changed since the local template was last reviewed, update `assets/subscription-onboarding-review-template.json` first, then apply the app or App Store Connect changes.
 
 ## Metadata Guidance
 
@@ -150,11 +163,12 @@ When optimizing for Apple Ads:
 Apple allows one to ten screenshots per supported device size/localization. The first one to three images matter most in search results when no app preview appears.
 
 - Use real app UI captures as the base image.
-- Use bright solid backgrounds that stand out in search results while preserving app-legibility.
+- Do not upload plain raw app screenshots by themselves for App Store marketing sets. Composite them into a store screenshot with a big bold sales headline at the top, a short benefit line, a visible CTA pill, and enough colorful branded background to stand out in search results.
+- Use bright solid or lightly patterned branded backgrounds that stand out in search results while preserving app-legibility. Avoid busy backgrounds that compete with the device capture.
 - Make one benefit unmistakable per screenshot and align it with high-intent ASO/Apple Ads search terms.
-- Keep overlay copy short enough to scan, with a sales-focused header and optional CTA such as "Free to download", "Track every kickoff", or "Start free trial".
+- Keep overlay copy short enough to scan, with a sales-focused header and an explicit CTA such as "Free to download", "Track every kickoff", "Start 14-day free trial", or "Included with Pro".
 - Include at least one dark-mode screenshot if dark mode is a meaningful part of the experience.
-- For subscription apps, make the Free experience look useful in the first screenshots and show at least one Pro benefit as an upgrade. If subscriptions or paid features are shown, mark them clearly with labels such as "Pro feature", "Included with Pro", or the subscription tier name.
+- For subscription apps, make the Free experience look useful in the first screenshots and show at least one Pro benefit as an upgrade. If subscriptions or paid features are shown, mark them clearly in the screenshot itself with labels such as "Pro feature", "Included with Pro", "Full set with Pro", or the subscription tier name.
 - Do not imply a paid feature is free. Do not hide terms, paywall state, or subscription context.
 
 ## Screenshot Recipe
@@ -170,11 +184,11 @@ Use this repeatable recipe when creating App Store screenshots for a new app:
    - Screenshot 4: progress, organization, dashboard, groups, timeline, or status view.
    - Screenshot 5: depth feature such as history, archive, analytics, exports, or rankings.
    - Screenshot 6: paywall, trial, subscription value, or upgrade screen when monetized.
-4. Use bright solid backgrounds, not busy patterns, so screenshots stand out in App Store search.
-5. Keep text short: one sales-focused headline, one benefit line, and one CTA pill.
+4. Use bright solid or simple branded color backgrounds, not plain raw captures and not busy patterns, so screenshots stand out in App Store search.
+5. Keep text short and mandatory: one big bold sales-focused headline, one benefit line, and one CTA pill.
 6. Include search-friendly wording naturally, but do not keyword-stuff or make claims the app cannot support.
-7. For paid features, set `paid: true` so the renderer adds a Pro label.
-8. Render a contact sheet or quick preview and check text legibility before upload.
+7. For paid features, set `paid: true` and use a CTA or badge that names the tier, so the renderer adds a visible Pro label and the screenshot cannot be mistaken for a free feature.
+8. Render a contact sheet or quick preview and check headline size, CTA visibility, Pro labels, text legibility, and device UI legibility before upload.
 
 The bundled recipe is intentionally generic and should be copied, not edited in place:
 
@@ -210,6 +224,24 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-screenshots \
 The plugin supports Apple's Build Uploads API for `.ipa` and `.pkg` files and also includes a Transporter fallback.
 
 When App Review rejects artwork or bundled assets, increment the build number, archive a new binary, upload the new build, and update `version.buildId`. Metadata-only changes are not enough for icon, asset catalog, bundled screenshot, or binary content changes.
+
+Use this upload fallback order:
+
+1. Try `upload-build-api` after a dry run and explicit confirmation.
+2. If the API rejects the upload commit, checksum payload, or reservation, try `upload-build-transporter` when `iTMSTransporter` or `xcrun iTMSTransporter` is installed.
+3. If Transporter is missing or fails locally, use Xcode's archive export upload fallback:
+
+```bash
+xcodebuild -exportArchive \
+  -archivePath build/App.xcarchive \
+  -exportPath build/app-store-upload \
+  -exportOptionsPlist build/ExportOptionsUpload.plist \
+  -allowProvisioningUpdates
+```
+
+For the Xcode fallback, the export options should use `destination=upload`, automatic signing when appropriate, and `signingCertificate=Apple Distribution`. Remove stale manual `provisioningProfiles` from the upload export options when automatic signing is intended.
+
+After any upload succeeds, poll App Store Connect builds until the new build is processed and `VALID`, then set `version.buildId` to that build ID and run `apply-metadata --yes` after confirmation. "Ready for submission" means the App Store Connect version has the uploaded build selected, required metadata applied, screenshots uploaded, pricing/subscriptions configured, review details complete, and preflight checks passing. A local archive, GitHub push, or unselected uploaded build is not ready for submission.
 
 ## Versioning
 
@@ -328,6 +360,8 @@ For subscriptions and paid features:
 - Before creating or changing subscription products, entitlements, offerings, paywalls, or App Store Connect subscription pricing, verify both App Store Connect and RevenueCat access. Do not start the subscription setup while either token/key is revoked, unauthorized, missing, or under-scoped.
 - Refresh subscription pricing research every six months. Treat weekly/monthly/yearly price anchors as benchmark-driven starting points, not permanent truths.
 - Use weekly, monthly, and yearly as the default subscription cadence set. Keep `creatorCanOverrideCadences` true and use `customCadenceReason` when a builder intentionally removes or changes a cadence.
+- Use weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` as the default benchmark prices. Keep them flexible, but require a documented reason before changing the default pattern.
+- Configure the default introductory offer as a 14-day free trial (`duration=TWO_WEEKS`, `numberOfPeriods=1`, `offerMode=FREE_TRIAL`) on every weekly, monthly, and yearly product unless the builder records `customIntroOfferReason`.
 - Keep the app's core loop available on Free: basic browsing, search, personalization, status/detail views, and a sensible number of tracked items should not be blocked by default.
 - Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, or an ad-free experience when relevant.
 - If an app needs a different split, keep the plugin flexible: adjust `freeProAccessModel.targetFreeAccessPercent`, `targetProAccessPercent`, pricing products, paywall triggers, and add `customAccessSplitReason`.
@@ -337,6 +371,7 @@ For subscriptions and paid features:
 - Offer a clear monthly/default option and an annual best-value option when the discount is real. Weekly plans can be useful for short event apps, but do not make them the only obvious path.
 - For World Cup-style or event-driven apps, weekly can be a short-term/event pass, monthly should anchor ongoing Pro value, and yearly should be positioned as best value for committed users. Use category/current benchmark research before choosing exact price points.
 - Use a first-time introductory offer only after the onboarding flow has shown value; display it with StoreKit/paywall terms, not vague marketing copy.
+- When a real StoreKit or RevenueCat trial is present, the default primary button text is `Start 14-day free trial`, with `✓ No payment due now` below the button. Never show this tagline for a product that does not have a real free-trial introductory offer.
 - Use `list-subscription-price-points` to find price point IDs, then `configure-subscription-pricing` to dry-run and apply subscription prices/intro offers after explicit confirmation.
 - Include Privacy Policy and Terms of Use links in the App Store description, even if the app info localization already has a privacy URL.
 - Include a subscription information section that explains the trial, weekly/monthly/yearly or relevant plan cadence, auto-renewal, cancellation timing, account billing, and account settings management.
@@ -365,13 +400,22 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscriptio
 
 For subscription apps, especially event-driven apps like World Cup-style trackers:
 
+- Treat onboarding, paywall, subscriptions, and review prompts as a binary release gate before archiving. Inspect the app code, not only App Store Connect metadata, and verify the app has a real first-run onboarding path, a compliant paywall, product/entitlement IDs that match App Store Connect or RevenueCat, restore purchases, Privacy Policy and Terms links, and a delayed review-prompt policy.
+- If any of those pieces are missing, implement them before uploading a new release build. Do not claim the app is ready merely because metadata and screenshots are complete.
+- Keep onboarding value-first and short, usually 3-5 screens: core outcome, personalization or local context, permission education, then optional Pro. Location and notification permission prompts should appear only after the user sees why the permission helps.
+- Make the paywall optional for freemium apps. It must have a visible close or continue-free path unless the app is intentionally paid-only and the App Store description/review notes make that clear.
+- Keep the Free tier genuinely useful, normally 70-80% of the core loop. Gate high-intent depth such as unlimited saved items, full archives/readers, advanced alerts, widgets, premium personalization, exports, or future premium extras.
+- Use live StoreKit or RevenueCat product metadata for display prices whenever possible. Fallback prices are acceptable only for previews/development and must not be the evidence used to declare App Store readiness.
+- Before build upload, cross-check every product ID in code against App Store Connect/RevenueCat products. Product IDs, subscription group, localizations, pricing, availability, review screenshot, and review notes must be ready for first subscription review.
+- Required paywall elements: product name, billing duration, price, trial duration and post-trial price when a real trial exists, primary CTA, `✓ No payment due now` reassurance when the trial is real, auto-renewal disclosure, cancellation at least 24 hours before renewal, renewal charge within 24 hours before renewal, restore purchases, Privacy Policy link, Terms of Use/EULA link, and clear purchase/loading/error states.
+- Do not say "No payment due now", "free trial", or similar unless StoreKit/RevenueCat confirms the selected product has a real introductory offer.
 - Let users choose favorite teams, tournaments, groups, or notification preferences before the paywall.
 - Show personalized value before asking for payment: a tailored schedule, match center, countdown, reminders, standings, or tracked items.
 - Let users continue for free after onboarding whenever sensible. The first paywall should appear after personalized value, after a generous free limit, or when the user taps a clearly labeled Pro feature.
 - Ask notification permission only after explaining what the alert does.
 - Show Restore Purchases plus Terms of Use and Privacy Policy links wherever the paywall appears.
 - Do not call StoreKit `requestReview` on launch, during onboarding, on a paywall, after a purchase prompt, after cancellation, after an error, after an offline failure, or as a direct result of tapping a "Rate us" button.
-- Use review prompts only after positive completed outcomes, such as following a first team/topic, opening a personalized match/event hub, or receiving a useful reminder. Add a local cooldown even though Apple also limits system prompts to three displays per 365 days.
+- Use review prompts only after positive completed outcomes, such as following a first team/topic, opening a personalized match/event hub, reading a useful daily briefing, completing onboarding, or receiving a useful reminder. Add local gates before calling the system prompt: onboarding complete, at least 24 hours since first launch, at least 3 launches, at least 3 positive engagement events, no active modal/paywall/error, and a local cooldown of about 90 days.
 - Use an App Store `?action=write-review` URL for explicit user-initiated review actions in settings/help.
 
 ## Manual Or Limited Areas

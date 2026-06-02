@@ -88,9 +88,9 @@
     "benchmarkAnchors": [
       {
         "period": "ONE_WEEK",
-        "role": "shortTermOptional",
+        "role": "shortTermEntry",
         "benchmarkCustomerPrice": "4.99",
-        "notes": "Use weekly only when short-horizon/event intent is real; it can convert but tends to churn faster."
+        "notes": "Weekly is part of the default launch pattern as a short-term entry plan; builders can remove it with a custom cadence reason when it does not fit the app."
       },
       {
         "period": "ONE_MONTH",
@@ -108,7 +108,7 @@
     "cadencePrinciples": [
       "monthly anchors the normal subscription value",
       "yearly is the best-value retention path",
-      "weekly is optional for event-driven or short-term intent, not the default path"
+      "weekly is the default short-term entry path but remains overrideable when it does not fit the app"
     ]
   },
   "freeProAccessModel": {
@@ -170,6 +170,18 @@
     "baseTerritory": "USA",
     "useSingleSubscriptionGroup": true,
     "introOfferRecommended": true,
+    "trialDefaults": {
+      "enabledByDefault": true,
+      "creatorCanOverride": true,
+      "duration": "TWO_WEEKS",
+      "displayDuration": "14-day",
+      "offerMode": "FREE_TRIAL",
+      "numberOfPeriods": 1,
+      "primaryCta": "Start 14-day free trial",
+      "postCtaTagline": "✓ No payment due now",
+      "showTaglineOnlyWhenProductHasTrial": true,
+      "customIntroOfferReason": ""
+    },
     "defaultCadences": [
       "ONE_WEEK",
       "ONE_MONTH",
@@ -178,6 +190,8 @@
     "creatorCanOverrideCadences": true,
     "weeklyUseCase": "short-term, event-driven, or trial-adjacent premium intent",
     "customCadenceReason": "",
+    "customPriceReason": "",
+    "customIntroOfferReason": "",
     "cadenceStrategy": {
       "weekly": "short-term or event-driven entry plan",
       "monthly": "primary comparison plan",
@@ -220,10 +234,24 @@
     ],
     "introductoryOffers": [
       {
+        "subscriptionId": "subscription-weekly-id",
+        "territory": "USA",
+        "offerMode": "FREE_TRIAL",
+        "duration": "TWO_WEEKS",
+        "numberOfPeriods": 1
+      },
+      {
         "subscriptionId": "subscription-monthly-id",
         "territory": "USA",
         "offerMode": "FREE_TRIAL",
-        "duration": "ONE_WEEK",
+        "duration": "TWO_WEEKS",
+        "numberOfPeriods": 1
+      },
+      {
+        "subscriptionId": "subscription-yearly-id",
+        "territory": "USA",
+        "offerMode": "FREE_TRIAL",
+        "duration": "TWO_WEEKS",
         "numberOfPeriods": 1
       }
     ],
@@ -234,6 +262,12 @@
     "paywallTiming": "afterFirstPersonalizedValue",
     "restorePurchasesVisible": true,
     "termsAndPrivacyVisibleOnPaywall": true,
+    "defaultTrialPaywall": {
+      "primaryCta": "Start 14-day free trial",
+      "postCtaTagline": "✓ No payment due now",
+      "showOnlyWhenStoreProductHasTrial": true,
+      "continueFreePathVisible": true
+    },
     "screens": [
       "Pick favorites or goals",
       "Show personalized upcoming value",
@@ -286,7 +320,7 @@
     {
       "id": "version-localization-id",
       "locale": "en-US",
-      "description": "Example Product helps you plan focused days with clear priorities, smart reminders, and calm progress tracking.\n\nKey features:\n- Plan tasks by energy and deadline\n- See your next best action instantly\n- Track routines without noisy streak pressure\n- Unlock Pro for recurring plans and advanced insights\n\nSUBSCRIPTION INFORMATION:\nExample Product Pro unlocks recurring plans, advanced insights, and unlimited routines. Subscription options include a free trial for new subscribers plus weekly, monthly, and yearly auto-renewable plans. Payment will be charged to your Apple ID account at confirmation of purchase or after the free trial ends, where applicable. Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Your Apple ID account will be charged for renewal within 24 hours before the end of the current period. You can manage or cancel subscriptions any time in your App Store account settings.\n\nPrivacy Policy: https://example.com/privacy\nTerms of Use: https://example.com/terms",
+      "description": "Example Product helps you plan focused days with clear priorities, smart reminders, and calm progress tracking.\n\nKey features:\n- Plan tasks by energy and deadline\n- See your next best action instantly\n- Track routines without noisy streak pressure\n- Unlock Pro for recurring plans and advanced insights\n\nSUBSCRIPTION INFORMATION:\nExample Product Pro unlocks recurring plans, advanced insights, and unlimited routines. Subscription options include a 14-day free trial for eligible new subscribers plus weekly, monthly, and yearly auto-renewable plans. Payment will be charged to your Apple ID account at confirmation of purchase or after the free trial ends, where applicable. Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Your Apple ID account will be charged for renewal within 24 hours before the end of the current period. You can manage or cancel subscriptions any time in your App Store account settings.\n\nPrivacy Policy: https://example.com/privacy\nTerms of Use: https://example.com/terms",
       "keywords": "planner,focus,tasks,routines,calendar",
       "promotionalText": "Start the week with cleaner plans and faster daily resets.",
       "supportUrl": "https://example.com/support",
@@ -321,18 +355,52 @@
   },
   "subscriptions": [
     {
-      "id": "subscription-id",
+      "id": "subscription-weekly-id",
+      "productId": "com.example.product.pro.weekly",
+      "period": "ONE_WEEK",
+      "referenceName": "Pro Weekly",
+      "localizations": [
+        {
+          "id": "subscription-weekly-localization-id",
+          "locale": "en-US",
+          "name": "Pro Weekly",
+          "description": "Unlock recurring plans, advanced insights, and unlimited routines."
+        }
+      ],
+      "reviewScreenshot": "screenshots/review/pro-paywall.png",
+      "paidFeatureScreenshot": true
+    },
+    {
+      "id": "subscription-monthly-id",
       "productId": "com.example.product.pro.monthly",
+      "period": "ONE_MONTH",
       "referenceName": "Pro Monthly",
       "localizations": [
         {
-          "id": "subscription-localization-id",
+          "id": "subscription-monthly-localization-id",
           "locale": "en-US",
           "name": "Pro Monthly",
           "description": "Unlock recurring plans, advanced insights, and unlimited routines."
         }
       ],
-      "reviewScreenshot": "screenshots/review/pro-paywall.png"
+      "reviewScreenshot": "screenshots/review/pro-paywall.png",
+      "paidFeatureScreenshot": true
+    },
+    {
+      "id": "subscription-yearly-id",
+      "productId": "com.example.product.pro.yearly",
+      "period": "ONE_YEAR",
+      "referenceName": "Pro Yearly",
+      "localizations": [
+        {
+          "id": "subscription-yearly-localization-id",
+          "locale": "en-US",
+          "name": "Pro Yearly",
+          "description": "Unlock recurring plans, advanced insights, and unlimited routines."
+        }
+      ],
+      "reviewScreenshot": "screenshots/review/pro-paywall.png",
+      "paidFeatureScreenshot": true
     }
   ],
   "screenshots": [

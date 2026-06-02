@@ -76,6 +76,15 @@ PRO_ACCESS_MIN_PERCENT = 20
 PRO_ACCESS_MAX_PERCENT = 30
 SUBSCRIPTION_PERIODS = {"ONE_WEEK", "ONE_MONTH", "TWO_MONTHS", "THREE_MONTHS", "SIX_MONTHS", "ONE_YEAR"}
 DEFAULT_SUBSCRIPTION_CADENCES = ["ONE_WEEK", "ONE_MONTH", "ONE_YEAR"]
+DEFAULT_SUBSCRIPTION_PRICES_USD = {
+    "ONE_WEEK": "4.99",
+    "ONE_MONTH": "9.99",
+    "ONE_YEAR": "29.99",
+}
+DEFAULT_SUBSCRIPTION_TRIAL_DURATION = "TWO_WEEKS"
+DEFAULT_SUBSCRIPTION_TRIAL_DISPLAY = "14-day"
+DEFAULT_PAYWALL_TRIAL_CTA = "Start 14-day free trial"
+DEFAULT_PAYWALL_TRIAL_TAGLINE = "✓ No payment due now"
 SUBSCRIPTION_OFFER_MODES = {"PAY_AS_YOU_GO", "PAY_UP_FRONT", "FREE_TRIAL"}
 SUBSCRIPTION_OFFER_DURATIONS = {
     "THREE_DAYS",
@@ -977,12 +986,29 @@ def subscription_id_by_product(config: dict[str, Any]) -> dict[str, str]:
     result = {}
     for sub in as_list(config.get("subscriptions")):
         if sub.get("productId") and sub.get("id"):
-            result[sub["productId"]] = sub["id"]
+            result[str(sub["productId"])] = str(sub["id"])
+    for entry in subscription_pricing_entries(config):
+        subscription_id = entry.get("subscriptionId") or entry.get("id")
+        product_id = entry.get("productId")
+        if product_id and subscription_id:
+            result[str(product_id)] = str(subscription_id)
     return result
 
 
 def resolve_subscription_id(item: dict[str, Any], product_map: dict[str, str]) -> str | None:
     return item.get("subscriptionId") or item.get("id") or product_map.get(str(item.get("productId")))
+
+
+def subscription_item_identifiers(item: dict[str, Any], product_map: dict[str, str]) -> set[str]:
+    identifiers: set[str] = set()
+    for key in ("subscriptionId", "id", "productId"):
+        value = item.get(key)
+        if value:
+            identifiers.add(str(value))
+    product_id = item.get("productId")
+    if product_id and str(product_id) in product_map:
+        identifiers.add(product_map[str(product_id)])
+    return identifiers
 
 
 def build_subscription_price_body(
@@ -1012,7 +1038,7 @@ def build_subscription_intro_offer_body(
     attrs = {
         "startDate": offer.get("startDate"),
         "endDate": offer.get("endDate"),
-        "duration": offer.get("duration", "ONE_WEEK"),
+        "duration": offer.get("duration", DEFAULT_SUBSCRIPTION_TRIAL_DURATION),
         "offerMode": offer.get("offerMode", "FREE_TRIAL"),
         "numberOfPeriods": int(offer.get("numberOfPeriods", 1)),
     }
@@ -1325,6 +1351,7 @@ def validate_subscription_pricing_strategy(
                 "message": "Applying subscription prices requires App Store Connect subscription price point IDs.",
             }
         )
+    custom_price_reason = str(pricing.get("customPriceReason") or "").strip()
     for index, entry in enumerate(entries):
         field = f"subscriptionPricing.products[{index}]"
         period = str(entry.get("period") or entry.get("subscriptionPeriod") or "").upper()
@@ -1336,6 +1363,17 @@ def validate_subscription_pricing_strategy(
                     "message": "Subscription period must be one of Apple's supported period constants.",
                 }
             )
+        if period in DEFAULT_SUBSCRIPTION_PRICES_USD and not custom_price_reason:
+            expected_price = numeric_price(DEFAULT_SUBSCRIPTION_PRICES_USD[period])
+            actual_price = entry_price(entry)
+            if actual_price is not None and expected_price is not None and abs(actual_price - expected_price) > 0.01:
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "field": field + ".benchmarkCustomerPrice",
+                        "message": f"Default {period} pricing is ${DEFAULT_SUBSCRIPTION_PRICES_USD[period]}. Add customPriceReason when a different launch price is intentional.",
+                    }
+                )
         if entry.get("changeType") == "increase" and entry.get("preserveCurrentPrice") is not True:
             issues.append(
                 {
@@ -1347,29 +1385,127 @@ def validate_subscription_pricing_strategy(
     validate_subscription_cadence_strategy(config, issues)
 
     offers = subscription_intro_offer_entries(config)
+    trial_defaults = pricing.get("trialDefaults") or {}
+    custom_intro_reason = str(
+        pricing.get("customIntroOfferReason")
+        or pricing.get("customTrialReason")
+        or trial_defaults.get("customIntroOfferReason")
+        or trial_defaults.get("customTrialReason")
+        or ""
+    ).strip()
     if pricing.get("introOfferRecommended", True) and not offers:
         issues.append(
             {
                 "severity": "warning",
                 "field": "subscriptionPricing.introductoryOffers",
-                "message": "Consider a first-time subscriber introductory offer, usually a short free trial after users see onboarding value.",
+                "message": "The default launch pattern includes a 14-day free trial for first-time subscribers after users see onboarding value. Add introductoryOffers or set customIntroOfferReason when a different setup is intentional.",
             }
         )
+    product_map = subscription_id_by_product(config)
+    if pricing.get("introOfferRecommended", True) and entries and not custom_intro_reason:
+        free_trial_identifiers: set[str] = set()
+        for offer in offers:
+            if str(offer.get("offerMode", "FREE_TRIAL")).upper() == "FREE_TRIAL":
+                free_trial_identifiers.update(subscription_item_identifiers(offer, product_map))
+        missing_trial_entries = [
+            entry
+            for entry in entries
+            if subscription_item_identifiers(entry, product_map)
+            and subscription_item_identifiers(entry, product_map).isdisjoint(free_trial_identifiers)
+        ]
+        if missing_trial_entries:
+            missing_labels = [
+                str(entry.get("period") or entry.get("productId") or entry.get("subscriptionId") or entry.get("id"))
+                for entry in missing_trial_entries
+            ]
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "subscriptionPricing.introductoryOffers",
+                    "message": "Default subscription setup gives every weekly, monthly, and yearly plan a 14-day free trial. Add missing free-trial offers for "
+                    + ", ".join(missing_labels)
+                    + " or set customIntroOfferReason when the difference is intentional.",
+                }
+            )
+        primary_cta = str(
+            trial_defaults.get("primaryCta")
+            or trial_defaults.get("paywallPrimaryCta")
+            or trial_defaults.get("cta")
+            or ""
+        ).strip()
+        tagline = str(
+            trial_defaults.get("postCtaTagline")
+            or trial_defaults.get("paywallPostCtaTagline")
+            or trial_defaults.get("belowButtonTagline")
+            or ""
+        ).strip()
+        if trial_defaults and trial_defaults.get("enabledByDefault") is False:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "subscriptionPricing.trialDefaults.enabledByDefault",
+                    "message": "The plugin default should enable the 14-day trial unless the builder records customIntroOfferReason.",
+                }
+            )
+        if DEFAULT_PAYWALL_TRIAL_CTA.lower() not in primary_cta.lower():
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "subscriptionPricing.trialDefaults.primaryCta",
+                    "message": f'Default paywalls should use "{DEFAULT_PAYWALL_TRIAL_CTA}" when StoreKit or RevenueCat confirms a real 14-day free trial.',
+                }
+            )
+        if "no payment due now" not in tagline.lower():
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "subscriptionPricing.trialDefaults.postCtaTagline",
+                    "message": f'Default paywalls should show "{DEFAULT_PAYWALL_TRIAL_TAGLINE}" below the trial button, only when the selected product has a real free trial.',
+                }
+            )
     for index, offer in enumerate(offers):
         field = f"subscriptionPricing.introductoryOffers[{index}]"
-        if str(offer.get("offerMode", "FREE_TRIAL")).upper() not in SUBSCRIPTION_OFFER_MODES:
+        offer_mode = str(offer.get("offerMode", "FREE_TRIAL")).upper()
+        duration = str(offer.get("duration", DEFAULT_SUBSCRIPTION_TRIAL_DURATION)).upper()
+        if offer_mode not in SUBSCRIPTION_OFFER_MODES:
             issues.append(
                 {"severity": "error", "field": field + ".offerMode", "message": "Unsupported subscription offer mode."}
             )
-        if str(offer.get("duration", "ONE_WEEK")).upper() not in SUBSCRIPTION_OFFER_DURATIONS:
+        if duration not in SUBSCRIPTION_OFFER_DURATIONS:
             issues.append(
                 {"severity": "error", "field": field + ".duration", "message": "Unsupported subscription offer duration."}
+            )
+        elif offer_mode == "FREE_TRIAL" and duration != DEFAULT_SUBSCRIPTION_TRIAL_DURATION and not custom_intro_reason:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field + ".duration",
+                    "message": "The default free-trial duration is TWO_WEEKS. Set customIntroOfferReason if a shorter or longer introductory offer is intentional.",
+                }
+            )
+        number_of_periods = int_or_none(offer.get("numberOfPeriods", 1))
+        if number_of_periods is None:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".numberOfPeriods",
+                    "message": "Introductory offer numberOfPeriods must be an integer.",
+                }
+            )
+        elif offer_mode == "FREE_TRIAL" and number_of_periods != 1 and not custom_intro_reason:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field + ".numberOfPeriods",
+                    "message": "The default 14-day free trial uses one period. Set customIntroOfferReason if multiple trial periods are intentional.",
+                }
             )
 
 
 def validate_onboarding_strategy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
     subscriptions = as_list(config.get("subscriptions"))
-    if not subscriptions:
+    has_subscription_strategy = bool(subscriptions or config.get("subscriptionPricing"))
+    if not has_subscription_strategy:
         return
     onboarding = config.get("onboarding") or {}
     if not onboarding:
@@ -1427,6 +1563,15 @@ def percent_or_none(value: Any) -> int | None:
         text = text[:-1]
     try:
         return int(round(float(text)))
+    except (TypeError, ValueError):
+        return None
+
+
+def int_or_none(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
     except (TypeError, ValueError):
         return None
 
@@ -1771,6 +1916,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
         "recommendations": [
             "Run access preflight first: App Store Connect must pass a read-only API probe and RevenueCat must pass the MCP list_projects probe before subscription automation.",
             "Refresh subscription pricing research every six months; re-check current RevenueCat benchmarks and Apple pricing rules before finalizing weekly, monthly, and yearly prices.",
+            "Default to weekly $4.99, monthly $9.99, yearly $29.99, each with a 14-day free trial, unless the builder records an intentional override.",
             "Keep the app download free when monetizing with subscriptions, then price subscription products separately.",
             "Default to a Free + Pro model where Free gives a complete 70-80% taste of useful functionality and Pro unlocks the remaining high-intent depth.",
             "Keep the app's core loop usable on Free; reserve Pro for unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization.",
@@ -1798,7 +1944,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
                 "productId": offer.get("productId"),
                 "territory": offer.get("territory") or offer.get("territoryId"),
                 "offerMode": offer.get("offerMode", "FREE_TRIAL"),
-                "duration": offer.get("duration", "ONE_WEEK"),
+                "duration": offer.get("duration", DEFAULT_SUBSCRIPTION_TRIAL_DURATION),
                 "numberOfPeriods": offer.get("numberOfPeriods", 1),
             }
             for offer in intro_offers
@@ -1856,6 +2002,7 @@ def configure_subscription_pricing(
 def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     subscriptions = as_list(config.get("subscriptions"))
+    has_subscription_strategy = bool(subscriptions or config.get("subscriptionPricing"))
     version_localizations = as_list(config.get("versionLocalizations"))
 
     app = config.get("app", {})
@@ -1931,8 +2078,41 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                     "message": "Avoid specific prices in App Store descriptions.",
                 }
             )
-        if subscriptions:
+        if has_subscription_strategy:
             validate_subscription_description(description, prefix, issues)
+            pricing = config.get("subscriptionPricing") or {}
+            trial_defaults = pricing.get("trialDefaults") or {}
+            custom_intro_reason = str(
+                pricing.get("customIntroOfferReason")
+                or pricing.get("customTrialReason")
+                or trial_defaults.get("customIntroOfferReason")
+                or trial_defaults.get("customTrialReason")
+                or ""
+            ).strip()
+            has_two_week_trial = any(
+                str(offer.get("offerMode", "FREE_TRIAL")).upper() == "FREE_TRIAL"
+                and str(offer.get("duration", DEFAULT_SUBSCRIPTION_TRIAL_DURATION)).upper()
+                == DEFAULT_SUBSCRIPTION_TRIAL_DURATION
+                for offer in subscription_intro_offer_entries(config)
+            )
+            if has_two_week_trial and not custom_intro_reason:
+                normalized_description = description.lower()
+                if "14-day" not in normalized_description and "14 day" not in normalized_description:
+                    issues.append(
+                        {
+                            "severity": "warning",
+                            "field": prefix + ".description",
+                            "message": "Default subscription metadata should mention the 14-day free trial for eligible new subscribers.",
+                        }
+                    )
+                if "no free trial" in normalized_description or "no trial" in normalized_description:
+                    issues.append(
+                        {
+                            "severity": "warning",
+                            "field": prefix + ".description",
+                            "message": "Description appears to contradict the configured free trial. Remove stale no-trial copy before review.",
+                        }
+                    )
 
     review = config.get("reviewDetails", {})
     for field in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail"):
@@ -1977,7 +2157,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
 
-    if subscriptions:
+    if has_subscription_strategy:
         paid_screenshot_seen = False
         for sub in subscriptions:
             if not sub.get("reviewScreenshot"):

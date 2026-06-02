@@ -208,9 +208,11 @@
       ],
       "fallbackTooling": [
         "Transporter command-line upload",
+        "xcodebuild -exportArchive with destination=upload",
         "xcrun altool upload",
         "Xcode Organizer upload"
-      ]
+      ],
+      "notes": "If the Build Uploads API rejects checksum metadata or Transporter is unavailable, use Xcode's archive export upload fallback, then poll builds until the uploaded build is processed/VALID and PATCH appStoreVersions with version.buildId. Ready for submission means the uploaded build is processed and selected in App Store Connect, not merely archived locally."
     },
     {
       "group": "Local project versioning",
@@ -281,12 +283,12 @@
         "annual best-value discount benchmark",
         "subscription price points",
         "base territory subscription prices",
-        "introductory offers",
+        "14-day free trial introductory offers",
         "availability",
         "review screenshots",
         "submission"
       ],
-      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; weekly/monthly/yearly are the default plan cadences, builders can override the mix with a custom cadence reason, yearly should be a real best-value anchor, and weekly should reflect short-horizon or event-driven intent."
+      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; weekly $4.99, monthly $9.99, and yearly $29.99 are the default plan prices, each with a 14-day free trial unless the builder records an override. Yearly should be a real best-value anchor, and weekly should reflect short-horizon or event-driven intent."
     },
     {
       "group": "Onboarding, paywall, and review prompts",
@@ -302,13 +304,15 @@
         "creator override rationale for custom subscription access",
         "paywall timing policy",
         "paywall trigger policy",
+        "Start 14-day free trial CTA",
+        "No payment due now paywall tagline",
         "restore purchases visibility",
         "terms/privacy paywall visibility",
         "positive review prompt triggers",
         "blocked review prompt contexts",
         "local review prompt cooldown"
       ],
-      "notes": "The plugin defaults subscription apps to Free + Pro: roughly 70-80% of useful functionality remains free, while Pro unlocks high-intent depth such as unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization. Creators can override the split with an explicit rationale. Apple controls whether the system rating prompt is displayed; the plugin validates trigger policy so requestReview is used after positive non-interruptive outcomes, not launch, onboarding, paywall, purchase, cancellation, or error flows."
+      "notes": "The plugin defaults subscription apps to Free + Pro: roughly 70-80% of useful functionality remains free, while Pro unlocks high-intent depth such as unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization. Default paywalls use Start 14-day free trial plus a check-mark No payment due now tagline only when StoreKit/RevenueCat confirms a real free trial. Creators can override the split or trial with an explicit rationale. Apple controls whether the system rating prompt is displayed; the plugin validates trigger policy so requestReview is used after positive non-interruptive outcomes, not launch, onboarding, paywall, purchase, cancellation, or error flows."
     },
     {
       "group": "Custom product pages and product page optimization",
@@ -354,7 +358,7 @@
     "description": "Lead with the strongest benefit in the first sentence, then use concise feature bullets. Avoid prices and keyword stuffing.",
     "keywords": "Use relevant comma-separated terms, avoid duplicates, category names, competitor names, trademarks, offensive terms, and spaces after commas.",
     "promotionalText": "Use for current news or offers, not search ranking keywords.",
-    "screenshots": "Make the first one to three images explain the app's core value. Use one benefit per screenshot. Show the Free product as genuinely useful, and mark subscription or paid-only features clearly.",
+    "screenshots": "Make the first one to three images explain the app's core value with a big bold headline, colorful background, and visible CTA. Use one benefit per screenshot. Show the Free product as genuinely useful, and mark subscription or paid-only features clearly.",
     "customProductPages": "Match screenshots, promo text, and keywords to a specific ad group, audience, feature, or seasonal intent."
   }
 }

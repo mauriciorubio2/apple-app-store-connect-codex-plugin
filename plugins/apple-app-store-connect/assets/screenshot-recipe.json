@@ -5,13 +5,17 @@
   "textColor": "#101114",
   "mutedColor": "#20242B",
   "ctaTextColor": "#FFFFFF",
+  "requireCTA": true,
+  "backgroundArt": "soft-waves",
   "paidBadge": "Pro",
   "phoneTopRatio": 0.36,
   "phoneWidthRatio": 0.72,
   "recipeNotes": [
     "Copy this file into the app repo and replace each source path with a real UI capture.",
     "Keep the first three screenshots focused on core value, high-intent search/action, and the strongest differentiator.",
-    "Use bright solid backgrounds for App Store search contrast, one benefit per screenshot, and paid labels for Pro-only features."
+    "Every App Store screenshot should have a big bold headline, short benefit line, visible CTA pill, and colorful branded background.",
+    "Use bright solid or lightly patterned backgrounds for App Store search contrast, one benefit per screenshot, and paid labels for Pro-only features.",
+    "For subscription apps, the paywall screenshot should show Start 14-day free trial and the check-mark No payment due now reassurance only when the app has a real introductory offer."
   ],
   "screens": [
     {
@@ -36,7 +40,7 @@
       "background": "#FF4F5E",
       "headline": "Show the feature that sells",
       "subheadline": "Make the strongest paid or differentiating feature obvious.",
-      "cta": "Start free trial",
+      "cta": "Start 14-day free trial",
       "paid": true
     },
     {
@@ -62,7 +66,8 @@
       "background": "#FFD84D",
       "headline": "Upgrade with confidence",
       "subheadline": "Show the paywall or plan screen with clear trial and subscription context.",
-      "cta": "No payment due now",
+      "cta": "Start 14-day free trial",
+      "ctaNote": "✓ No payment due now",
       "paid": true
     }
   ]

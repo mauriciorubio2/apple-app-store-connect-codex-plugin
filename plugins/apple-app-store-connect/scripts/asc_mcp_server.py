@@ -185,7 +185,7 @@ TOOLS = [
     },
     {
         "name": "asc_upload_build_api",
-        "description": "Upload an .ipa or .pkg through the App Store Connect Build Uploads API. Requires confirm=true.",
+        "description": "Upload an .ipa or .pkg through the App Store Connect Build Uploads API. Requires confirm=true. If API checksum commit or local Transporter upload fails, fall back to xcodebuild -exportArchive with destination=upload, then select the processed build.",
         "inputSchema": {
             "type": "object",
             "properties": {

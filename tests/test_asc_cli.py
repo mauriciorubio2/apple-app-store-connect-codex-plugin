@@ -699,6 +699,7 @@ class AscCliValidationTests(unittest.TestCase):
             (ROOT / "plugins/apple-app-store-connect/assets/subscription-onboarding-review-template.json").read_text()
         )
         config["subscriptions"] = [
+            {"id": "weekly-subscription-id", "productId": "com.example.app.pro.weekly"},
             {"id": "monthly-subscription-id", "productId": "com.example.app.pro.monthly"},
             {"id": "yearly-subscription-id", "productId": "com.example.app.pro.yearly"},
         ]
@@ -706,7 +707,11 @@ class AscCliValidationTests(unittest.TestCase):
         result = cli.plan_growth_strategy(config)
         self.assertTrue(result["ok"])
         self.assertEqual(len(result["plannedPricingActions"]), 3)
-        self.assertEqual(len(result["plannedIntroOfferActions"]), 1)
+        self.assertEqual(len(result["plannedIntroOfferActions"]), 3)
+        self.assertEqual(
+            {offer["duration"] for offer in result["plannedIntroOfferActions"]},
+            {"TWO_WEEKS"},
+        )
 
 
 if __name__ == "__main__":

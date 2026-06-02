@@ -23,10 +23,11 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
 - Plan and apply subscription product prices and introductory offers when App Store Connect price point IDs are supplied.
 - Check whether subscription pricing research is stale and prompt Codex to refresh weekly/monthly/yearly benchmarks every six months.
+- Default subscription launches to weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` Pro plans, each with a 14-day free trial unless a builder records an override.
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
 - Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
-- Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter fallback and optional automatic versioning.
+- Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter and Xcode `destination=upload` fallbacks plus optional automatic versioning.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
 - Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
 - Prepare IP-sensitive releases and resubmissions with a generic third-party IP checklist, optional `ipReview` validation warnings, no-affiliation disclaimer guidance, and new-binary reminders for asset changes.
@@ -234,7 +235,7 @@ The plugin can infer the next values from Xcode `MARKETING_VERSION`, `CURRENT_PR
 
 ## Subscription Access, Onboarding, And Reviews
 
-The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, monthly plus annual options, RevenueCat project/offering/entitlement coordination, a first-time trial where appropriate, a flexible Free + Pro access model, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
+The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, weekly/monthly/yearly Pro plans, RevenueCat project/offering/entitlement coordination, a 14-day free trial for eligible first-time subscribers, a flexible Free + Pro access model, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
 
 Run access preflight first. `accessPreflight` requires a live App Store Connect probe plus a RevenueCat MCP `list_projects` probe before Codex applies metadata, pricing, products, offerings, screenshots, build uploads, or review submission changes. On failure, Codex should prompt for App Store Connect API-key setup or RevenueCat OAuth/API-key reauthorization, then retry the probe.
 
@@ -242,7 +243,9 @@ By default, `freeProAccessModel` gives users a complete Free product experience 
 
 Creators can still change the setup. Set `creatorCanOverride` to true, adjust `targetFreeAccessPercent`/`targetProAccessPercent`, and add `customAccessSplitReason` when a different access split or pricing model is intentional.
 
-Pricing research belongs beside the subscription setup. Keep `pricingResearch.lastReviewedOn`, `reviewIntervalMonths`, `nextReviewDue`, and `sources` current. The plugin defaults to a six-month review cycle because plan-duration benchmarks, competitive price anchors, category willingness to pay, and conversion patterns change regularly.
+Pricing research belongs beside the subscription setup. Keep `pricingResearch.lastReviewedOn`, `reviewIntervalMonths`, `nextReviewDue`, and `sources` current. The plugin defaults to a six-month review cycle because plan-duration benchmarks, competitive price anchors, category willingness to pay, and conversion patterns change regularly. The default price anchors are weekly `$4.99`, monthly `$9.99`, and yearly `$29.99`; add `customPriceReason`, `customCadenceReason`, or `customIntroOfferReason` when a different launch setup is intentional.
+
+Default paywalls should use `Start 14-day free trial` as the primary CTA and show `✓ No payment due now` below the button only when StoreKit or RevenueCat confirms the selected product has a real free-trial introductory offer.
 
 For review prompts, the plugin validates that `requestReview` is not tied to launch, onboarding, paywall, purchase, cancellation, error, permission, or direct "rate us" button contexts. Use a manual App Store write-review link for explicit user-initiated review actions.
 
@@ -255,7 +258,7 @@ python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
   --config appstore-screenshot-recipe.json
 ```
 
-Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and paywall or upgrade value.
+Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid or lightly patterned branded backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and paywall or upgrade value with a CTA note such as `✓ No payment due now`.
 
 ## App Icon Options
 

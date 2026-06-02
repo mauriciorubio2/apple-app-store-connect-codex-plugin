@@ -54,9 +54,9 @@
     "benchmarkAnchors": [
       {
         "period": "ONE_WEEK",
-        "role": "shortTermOptional",
+        "role": "shortTermEntry",
         "benchmarkCustomerPrice": "4.99",
-        "notes": "Useful for event-driven or short-horizon apps when users may only need premium during a tournament, trip, launch window, or seasonal moment."
+        "notes": "Weekly is part of the default launch pattern as a short-term entry plan; builders can remove it with a custom cadence reason when it does not fit the app."
       },
       {
         "period": "ONE_MONTH",
@@ -133,6 +133,18 @@
     "baseTerritory": "USA",
     "useSingleSubscriptionGroup": true,
     "introOfferRecommended": true,
+    "trialDefaults": {
+      "enabledByDefault": true,
+      "creatorCanOverride": true,
+      "duration": "TWO_WEEKS",
+      "displayDuration": "14-day",
+      "offerMode": "FREE_TRIAL",
+      "numberOfPeriods": 1,
+      "primaryCta": "Start 14-day free trial",
+      "postCtaTagline": "✓ No payment due now",
+      "showTaglineOnlyWhenProductHasTrial": true,
+      "customIntroOfferReason": ""
+    },
     "defaultCadences": [
       "ONE_WEEK",
       "ONE_MONTH",
@@ -141,8 +153,10 @@
     "creatorCanOverrideCadences": true,
     "weeklyUseCase": "event-driven or short-horizon premium intent",
     "customCadenceReason": "",
+    "customPriceReason": "",
+    "customIntroOfferReason": "",
     "cadenceStrategy": {
-      "weekly": "optional short-term/event pass",
+      "weekly": "default short-term entry plan",
       "monthly": "primary comparison plan",
       "yearly": "best-value retention plan"
     },
@@ -180,10 +194,24 @@
     ],
     "introductoryOffers": [
       {
+        "subscriptionId": "weekly-subscription-id",
+        "territory": "USA",
+        "offerMode": "FREE_TRIAL",
+        "duration": "TWO_WEEKS",
+        "numberOfPeriods": 1
+      },
+      {
         "subscriptionId": "monthly-subscription-id",
         "territory": "USA",
         "offerMode": "FREE_TRIAL",
-        "duration": "ONE_WEEK",
+        "duration": "TWO_WEEKS",
+        "numberOfPeriods": 1
+      },
+      {
+        "subscriptionId": "yearly-subscription-id",
+        "territory": "USA",
+        "offerMode": "FREE_TRIAL",
+        "duration": "TWO_WEEKS",
         "numberOfPeriods": 1
       }
     ]
@@ -193,6 +221,12 @@
     "paywallTiming": "afterFirstPersonalizedValue",
     "restorePurchasesVisible": true,
     "termsAndPrivacyVisibleOnPaywall": true,
+    "defaultTrialPaywall": {
+      "primaryCta": "Start 14-day free trial",
+      "postCtaTagline": "✓ No payment due now",
+      "showOnlyWhenStoreProductHasTrial": true,
+      "continueFreePathVisible": true
+    },
     "sportsEventAppPattern": [
       "Let users choose favorite teams, groups, or tournaments first.",
       "Show their personalized match/event hub before asking for purchase.",
