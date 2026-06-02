@@ -369,7 +369,7 @@ For subscriptions and paid features:
 - Include App Review screenshots for the paywall or purchased feature.
 - Prefer one subscription group for most apps so users cannot accidentally hold multiple active subscriptions.
 - Offer a clear monthly/default option and an annual best-value option when the discount is real. Weekly plans can be useful for short event apps, but do not make them the only obvious path.
-- For World Cup-style or event-driven apps, weekly can be a short-term/event pass, monthly should anchor ongoing Pro value, and yearly should be positioned as best value for committed users. Use category/current benchmark research before choosing exact price points.
+- For event-driven, seasonal, or short-horizon apps, weekly can be a short-term access plan, monthly should anchor ongoing Pro value, and yearly should be positioned as best value for committed users. Use category/current benchmark research before choosing exact price points.
 - Use a first-time introductory offer only after the onboarding flow has shown value; display it with StoreKit/paywall terms, not vague marketing copy.
 - When a real StoreKit or RevenueCat trial is present, the default primary button text is `Start 14-day free trial`, with `✓ No payment due now` below the button. Never show this tagline for a product that does not have a real free-trial introductory offer.
 - Use `list-subscription-price-points` to find price point IDs, then `configure-subscription-pricing` to dry-run and apply subscription prices/intro offers after explicit confirmation.
@@ -398,7 +398,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscriptio
 
 ## Onboarding And Review Prompts
 
-For subscription apps, especially event-driven apps like World Cup-style trackers:
+For subscription apps, especially event-driven, seasonal, or countdown-style trackers:
 
 - Treat onboarding, paywall, subscriptions, and review prompts as a binary release gate before archiving. Inspect the app code, not only App Store Connect metadata, and verify the app has a real first-run onboarding path, a compliant paywall, product/entitlement IDs that match App Store Connect or RevenueCat, restore purchases, Privacy Policy and Terms links, and a delayed review-prompt policy.
 - If any of those pieces are missing, implement them before uploading a new release build. Do not claim the app is ready merely because metadata and screenshots are complete.

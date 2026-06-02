@@ -25,7 +25,7 @@ class AssetTests(unittest.TestCase):
 
     def test_manifest_has_release_metadata(self):
         manifest = json.loads((PLUGIN / ".codex-plugin/plugin.json").read_text())
-        self.assertEqual(manifest["version"], "1.9.0")
+        self.assertEqual(manifest["version"], "1.9.1")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["repository"], "https://github.com/mauriciorubio2/apple-app-store-connect-codex-plugin")
         self.assertIn("mcpServers", manifest)

@@ -1,6 +1,6 @@
 {
   "name": "apple-app-store-connect",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Automate App Store Connect release prep, access preflight, versioning, metadata, screenshots, weekly/monthly/yearly subscription pricing with 14-day trial defaults, Free/Pro planning, RevenueCat coordination, build uploads, and review submission workflows from Codex.",
   "author": {
     "name": "mauriciorubio2",

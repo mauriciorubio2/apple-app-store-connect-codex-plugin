@@ -2,9 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [1.9.1] - 2026-06-03
+
+- Removed app-specific release-history wording so plugin documentation and changelog entries stay generic and reusable for any app category.
+- Kept the subscription, paywall, screenshot, upload-fallback, and readiness guidance unchanged while making examples category-neutral.
+
 ## [1.9.0] - 2026-06-02
 
-- Added the Day app launch defaults: weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` Pro plans, each with a 14-day free trial unless builders record an intentional override.
+- Added default launch pricing: weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` Pro plans, each with a 14-day free trial unless builders record an intentional override.
 - Added paywall defaults and validation for `Start 14-day free trial` plus `✓ No payment due now`, only when StoreKit or RevenueCat confirms a real introductory offer.
 - Strengthened release readiness guidance so "ready for submission" means the build is uploaded, processed, selected, and paired with complete metadata, screenshots, pricing, subscriptions, and review details.
 - Added Xcode `destination=upload` as a documented fallback when the Build Uploads API or local Transporter path fails.
@@ -32,7 +37,7 @@ All notable changes to this project are documented here.
 
 - Added a flexible `freeProAccessModel` default for subscription apps, targeting 70-80% useful Free functionality and 20-30% high-intent Pro depth.
 - Added validation and growth-plan output for Free/Pro access split, creator override rationale, core-loop gating, and paywall trigger timing.
-- Updated subscription/onboarding templates, release guidance, field map, and README to apply the World Cup Fever-style Free + Pro subscription pattern by default.
+- Updated subscription/onboarding templates, release guidance, field map, and README to apply a generic Free + Pro subscription pattern by default.
 
 ## [1.4.0] - 2026-06-01
 
