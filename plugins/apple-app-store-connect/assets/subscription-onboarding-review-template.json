@@ -141,7 +141,7 @@
       "offerMode": "FREE_TRIAL",
       "numberOfPeriods": 1,
       "primaryCta": "Start 14-day free trial",
-      "postCtaTagline": "✓ No payment due now",
+      "postCtaTagline": "\u2713 No payment due now",
       "showTaglineOnlyWhenProductHasTrial": true,
       "customIntroOfferReason": ""
     },
@@ -232,7 +232,7 @@
     "termsAndPrivacyVisibleOnPaywall": true,
     "defaultTrialPaywall": {
       "primaryCta": "Start 14-day free trial",
-      "postCtaTagline": "✓ No payment due now",
+      "postCtaTagline": "\u2713 No payment due now",
       "showOnlyWhenStoreProductHasTrial": true,
       "continueFreePathVisible": true
     },
@@ -274,5 +274,18 @@
       "offline",
       "permission_prompt"
     ]
+  },
+  "subscriptionReviewScreenshots": {
+    "requiredBeforeSubmission": true,
+    "allowSharedReviewScreenshot": false,
+    "blackScreenCheckRequired": true,
+    "planSpecificSelectionRequired": true,
+    "expectedPlanSources": {
+      "weekly": "screenshots/review/pro-paywall-weekly-selected.png",
+      "monthly": "screenshots/review/pro-paywall-monthly-selected.png",
+      "yearly": "screenshots/review/pro-paywall-yearly-selected.png"
+    },
+    "verificationCommand": "verify-subscription-review-screenshots --config appstore-submission.json --download-dir build/app-store/subscription-review-readback",
+    "notes": "Before declaring the app ready, verify each subscription App Review screenshot is processed, visible, non-black, and plan-specific unless a shared screenshot is intentionally documented."
   }
 }

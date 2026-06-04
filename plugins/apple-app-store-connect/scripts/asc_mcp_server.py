@@ -217,6 +217,21 @@ TOOLS = [
             "required": ["configPath"],
         },
     },
+    {
+        "name": "asc_verify_subscription_review_screenshots",
+        "description": "Read subscription App Review screenshots from App Store Connect and check for black, missing, unprocessed, or duplicate plan-specific screenshots.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "configPath": {"type": "string"},
+                "downloadDir": {
+                    "type": "string",
+                    "description": "Optional directory for rendered App Store Connect screenshots used by the pixel check.",
+                },
+            },
+            "required": ["configPath"],
+        },
+    },
 ]
 
 
@@ -414,6 +429,17 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         text = run_command(command)
     elif name == "asc_generate_screenshots":
         text = run_command(["python3", str(SCREENSHOTS), "--config", arguments["configPath"]])
+    elif name == "asc_verify_subscription_review_screenshots":
+        command = [
+            "python3",
+            str(CLI),
+            "verify-subscription-review-screenshots",
+            "--config",
+            arguments["configPath"],
+        ]
+        if arguments.get("downloadDir"):
+            command += ["--download-dir", arguments["downloadDir"]]
+        text = run_command(command)
     else:
         raise RuntimeError(f"Unknown tool: {name}")
     return {"content": [{"type": "text", "text": text}]}
@@ -427,7 +453,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.10.0"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.11.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

@@ -160,6 +160,59 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertFalse(any(issue["field"] == "firstTimeSubscriptionSubmission" for issue in result["issues"]))
 
+    def test_subscription_review_screenshots_must_be_plan_specific(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": {
+                "reviewScreenshot": {
+                    "allowSharedReviewScreenshot": False,
+                    "products": [
+                        {
+                            "productId": "com.example.product.pro.weekly",
+                            "subscriptionId": "sub-weekly",
+                            "expectedSelectedPlan": "weekly",
+                            "sourceFileChecksum": "same-checksum",
+                        },
+                        {
+                            "productId": "com.example.product.pro.monthly",
+                            "subscriptionId": "sub-monthly",
+                            "expectedSelectedPlan": "monthly",
+                            "sourceFileChecksum": "same-checksum",
+                        },
+                    ],
+                }
+            }
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertFalse(result["ok"])
+        self.assertIn("subscriptions.reviewScreenshot.products", fields)
+
+    def test_subscription_review_screenshots_can_be_shared_when_intentional(self):
+        cli = load_cli()
+        entries = [
+            {"expectedSelectedPlan": "weekly", "sourceFileChecksum": "same-checksum"},
+            {"expectedSelectedPlan": "monthly", "sourceFileChecksum": "same-checksum"},
+        ]
+        self.assertEqual(cli.subscription_review_screenshot_duplicate_issues(entries, allow_shared=True), [])
+
+    def test_subscription_review_screenshot_black_pixel_check(self):
+        cli = load_cli()
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow is not installed")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "black.png"
+            Image.new("RGB", (640, 920), "black").save(path)
+            issues = []
+            cli.add_subscription_review_screenshot_pixel_issues(
+                issues,
+                "subscriptions.reviewScreenshot.products[0].source",
+                cli.local_screenshot_pixel_summary(path),
+            )
+        self.assertTrue(any(issue["severity"] == "error" for issue in issues))
+
     def test_ip_review_warns_when_independent_app_disclaimers_are_missing(self):
         cli = load_cli()
         config = {

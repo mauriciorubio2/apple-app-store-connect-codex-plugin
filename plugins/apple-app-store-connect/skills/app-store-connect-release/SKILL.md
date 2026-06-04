@@ -219,6 +219,16 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-screenshots \
   --config appstore-submission.json --yes
 ```
 
+For subscription App Review screenshots, verify App Store Connect's stored assets before declaring review readiness:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-review-screenshots \
+  --config appstore-submission.json \
+  --download-dir build/app-store/subscription-review-readback
+```
+
+Treat missing screenshots, incomplete processing, suspiciously small files, mostly black screenshots, or identical screenshots reused across different weekly/monthly/yearly plan expectations as blockers. For multi-plan paywalls, the weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason.
+
 ## Build Uploads
 
 The plugin supports Apple's Build Uploads API for `.ipa` and `.pkg` files and also includes a Transporter fallback.
@@ -241,7 +251,7 @@ xcodebuild -exportArchive \
 
 For the Xcode fallback, the export options should use `destination=upload`, automatic signing when appropriate, and `signingCertificate=Apple Distribution`. Remove stale manual `provisioningProfiles` from the upload export options when automatic signing is intended.
 
-After any upload succeeds, poll App Store Connect builds until the new build is processed and `VALID`, then set `version.buildId` to that build ID and run `apply-metadata --yes` after confirmation. "Ready for submission" means the App Store Connect version has the uploaded build selected, required metadata applied, screenshots uploaded, pricing/subscriptions configured, first-time IAP/subscription products selected with the app version when required, review details complete, and preflight checks passing. A local archive, GitHub push, or unselected uploaded build is not ready for submission.
+After any upload succeeds, poll App Store Connect builds until the new build is processed and `VALID`, then set `version.buildId` to that build ID and run `apply-metadata --yes` after confirmation. "Ready for submission" means the App Store Connect version has the uploaded build selected, required metadata applied, screenshots uploaded, subscription review screenshots verified from App Store Connect readback, pricing/subscriptions configured, first-time IAP/subscription products selected with the app version when required, review details complete, and preflight checks passing. A local archive, GitHub push, or unselected uploaded build is not ready for submission.
 
 ## Versioning
 
@@ -366,7 +376,7 @@ For subscriptions and paid features:
 - Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, or an ad-free experience when relevant.
 - If an app needs a different split, keep the plugin flexible: adjust `freeProAccessModel.targetFreeAccessPercent`, `targetProAccessPercent`, pricing products, paywall triggers, and add `customAccessSplitReason`.
 - Include localized subscription names and descriptions.
-- Include App Review screenshots for the paywall or purchased feature.
+- Include App Review screenshots for the paywall or purchased feature. For multi-plan paywalls, verify each subscription product has a visible, processed, plan-specific screenshot; do not reuse a yearly-selected screenshot for weekly or monthly unless `allowSharedReviewScreenshot` is intentionally documented.
 - Prefer one subscription group for most apps so users cannot accidentally hold multiple active subscriptions.
 - Offer a clear monthly/default option and an annual best-value option when the discount is real. Weekly plans can be useful for short event apps, but do not make them the only obvious path.
 - For event-driven, seasonal, or short-horizon apps, weekly can be a short-term access plan, monthly should anchor ongoing Pro value, and yearly should be positioned as best value for committed users. Use category/current benchmark research before choosing exact price points.

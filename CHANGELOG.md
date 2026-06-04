@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.11.0] - 2026-06-04
+
+- Added subscription App Review screenshot verification for missing, unprocessed, suspiciously small, mostly black, or duplicate screenshots.
+- Added plan-specific screenshot checks so weekly, monthly, and yearly products should each show the matching selected plan unless a shared screenshot is intentionally documented.
+- Added CLI and MCP tooling for live App Store Connect screenshot readback plus local validation/template fields for screenshot IDs, checksums, expected selected plans, and processed state.
+
 ## [1.10.0] - 2026-06-04
 
 - Added a release-readiness gate for first-time IAP and subscription products that are still in `READY_TO_SUBMIT`.

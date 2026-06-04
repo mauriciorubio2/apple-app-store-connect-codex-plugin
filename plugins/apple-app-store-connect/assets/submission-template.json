@@ -178,7 +178,7 @@
       "offerMode": "FREE_TRIAL",
       "numberOfPeriods": 1,
       "primaryCta": "Start 14-day free trial",
-      "postCtaTagline": "✓ No payment due now",
+      "postCtaTagline": "\u2713 No payment due now",
       "showTaglineOnlyWhenProductHasTrial": true,
       "customIntroOfferReason": ""
     },
@@ -264,7 +264,7 @@
     "termsAndPrivacyVisibleOnPaywall": true,
     "defaultTrialPaywall": {
       "primaryCta": "Start 14-day free trial",
-      "postCtaTagline": "✓ No payment due now",
+      "postCtaTagline": "\u2713 No payment due now",
       "showOnlyWhenStoreProductHasTrial": true,
       "continueFreePathVisible": true
     },
@@ -367,7 +367,15 @@
           "description": "Unlock recurring plans, advanced insights, and unlimited routines."
         }
       ],
-      "reviewScreenshot": "screenshots/review/pro-paywall.png",
+      "reviewScreenshot": {
+        "source": "screenshots/review/pro-paywall-weekly-selected.png",
+        "expectedSelectedPlan": "weekly",
+        "allowSharedReviewScreenshot": false,
+        "reviewScreenshotId": "",
+        "sourceFileChecksum": "",
+        "assetDeliveryState": "not_uploaded",
+        "renderedVerified": false
+      },
       "paidFeatureScreenshot": true
     },
     {
@@ -383,7 +391,15 @@
           "description": "Unlock recurring plans, advanced insights, and unlimited routines."
         }
       ],
-      "reviewScreenshot": "screenshots/review/pro-paywall.png",
+      "reviewScreenshot": {
+        "source": "screenshots/review/pro-paywall-monthly-selected.png",
+        "expectedSelectedPlan": "monthly",
+        "allowSharedReviewScreenshot": false,
+        "reviewScreenshotId": "",
+        "sourceFileChecksum": "",
+        "assetDeliveryState": "not_uploaded",
+        "renderedVerified": false
+      },
       "paidFeatureScreenshot": true
     },
     {
@@ -399,7 +415,15 @@
           "description": "Unlock recurring plans, advanced insights, and unlimited routines."
         }
       ],
-      "reviewScreenshot": "screenshots/review/pro-paywall.png",
+      "reviewScreenshot": {
+        "source": "screenshots/review/pro-paywall-yearly-selected.png",
+        "expectedSelectedPlan": "yearly",
+        "allowSharedReviewScreenshot": false,
+        "reviewScreenshotId": "",
+        "sourceFileChecksum": "",
+        "assetDeliveryState": "not_uploaded",
+        "renderedVerified": false
+      },
       "paidFeatureScreenshot": true
     }
   ],
@@ -427,5 +451,13 @@
   "reviewSubmission": {
     "createDraft": true,
     "submitForReview": false
+  },
+  "subscriptionReviewScreenshots": {
+    "requiredBeforeSubmission": true,
+    "allowSharedReviewScreenshot": false,
+    "blackScreenCheckRequired": true,
+    "planSpecificSelectionRequired": true,
+    "verificationCommand": "verify-subscription-review-screenshots --config appstore-submission.json --download-dir build/app-store/subscription-review-readback",
+    "notes": "For weekly/monthly/yearly subscriptions, each App Review screenshot should show the matching plan selected unless allowSharedReviewScreenshot is deliberately set with a reason."
   }
 }

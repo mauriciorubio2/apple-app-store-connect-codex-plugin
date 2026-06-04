@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import plistlib
@@ -13,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -141,6 +143,9 @@ FIRST_TIME_SUBSCRIPTION_OK_FLAGS = {
     "submittedWithAppVersion",
     "uiSelectionConfirmed",
 }
+SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_BYTES = 25_000
+SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_LUMINANCE = 20
+SUBSCRIPTION_REVIEW_SCREENSHOT_MAX_DARK_PIXEL_RATIO = 0.90
 
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
@@ -1017,6 +1022,275 @@ def subscription_id_by_product(config: dict[str, Any]) -> dict[str, str]:
 
 def resolve_subscription_id(item: dict[str, Any], product_map: dict[str, str]) -> str | None:
     return item.get("subscriptionId") or item.get("id") or product_map.get(str(item.get("productId")))
+
+
+def infer_subscription_plan_label(item: dict[str, Any]) -> str | None:
+    explicit = str(
+        item.get("expectedSelectedPlan")
+        or item.get("selectedPlan")
+        or item.get("cadence")
+        or ""
+    ).strip().lower()
+    if explicit in {"weekly", "week", "one_week"}:
+        return "weekly"
+    if explicit in {"monthly", "month", "one_month"}:
+        return "monthly"
+    if explicit in {"yearly", "annual", "annually", "year", "one_year"}:
+        return "yearly"
+    haystack = " ".join(
+        str(item.get(key) or "")
+        for key in (
+            "productId",
+            "referenceName",
+            "displayName",
+            "name",
+            "duration",
+            "period",
+            "subscriptionPeriod",
+            "role",
+        )
+    ).lower()
+    if "one_week" in haystack or "weekly" in haystack or ".week" in haystack:
+        return "weekly"
+    if "one_month" in haystack or "monthly" in haystack or ".month" in haystack:
+        return "monthly"
+    if "one_year" in haystack or "yearly" in haystack or "annual" in haystack or ".year" in haystack:
+        return "yearly"
+    return None
+
+
+def subscription_review_screenshot_blocks(config: dict[str, Any]) -> list[dict[str, Any]]:
+    subscriptions = config.get("subscriptions")
+    if isinstance(subscriptions, dict):
+        return [subscriptions]
+    return [block for block in as_list(subscriptions) if isinstance(block, dict)]
+
+
+def subscription_review_screenshot_entries(config: dict[str, Any]) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def key_for(item: dict[str, Any]) -> tuple[str, str]:
+        return (
+            str(item.get("productId") or ""),
+            str(item.get("subscriptionId") or item.get("appleProductId") or item.get("id") or ""),
+        )
+
+    def add_or_merge(item: dict[str, Any], field: str) -> dict[str, Any]:
+        normalized = {**item}
+        if normalized.get("appleProductId") and not normalized.get("subscriptionId"):
+            normalized["subscriptionId"] = normalized.get("appleProductId")
+        if not normalized.get("expectedSelectedPlan"):
+            inferred = infer_subscription_plan_label(normalized)
+            if inferred:
+                normalized["expectedSelectedPlan"] = inferred
+        key = key_for(normalized)
+        existing = by_key.get(key)
+        if existing:
+            existing.update({k: v for k, v in normalized.items() if v not in (None, "")})
+            existing.setdefault("field", field)
+            return existing
+        normalized["field"] = field
+        entries.append(normalized)
+        by_key[key] = normalized
+        return normalized
+
+    def merge_review_info(target: dict[str, Any], review: Any) -> None:
+        if not review:
+            return
+        if isinstance(review, str):
+            target.setdefault("source", review)
+            return
+        if not isinstance(review, dict):
+            return
+        for key in (
+            "source",
+            "file",
+            "fileSize",
+            "sourceFileChecksum",
+            "renderedMd5",
+            "downloadedMd5",
+            "reviewScreenshotId",
+            "screenshotId",
+            "assetDeliveryState",
+            "renderedVerified",
+            "expectedSelectedPlan",
+            "allowSharedReviewScreenshot",
+        ):
+            if key in review and review[key] not in (None, ""):
+                target[key] = review[key]
+        if not target.get("expectedSelectedPlan"):
+            inferred = infer_subscription_plan_label(target)
+            if inferred:
+                target["expectedSelectedPlan"] = inferred
+
+    for block_index, block in enumerate(subscription_review_screenshot_blocks(config)):
+        block_review = block.get("reviewScreenshot") or block.get("reviewScreenshots")
+        block_products = as_list(block.get("products"))
+        if block_products:
+            for product_index, product in enumerate(block_products):
+                if not isinstance(product, dict):
+                    continue
+                entry = add_or_merge(product, f"subscriptions.products[{product_index}]")
+                merge_review_info(entry, product.get("reviewScreenshot"))
+        elif any(block.get(key) for key in ("productId", "subscriptionId", "appleProductId", "id")):
+            entry = add_or_merge(block, f"subscriptions[{block_index}]")
+            merge_review_info(entry, block.get("reviewScreenshot"))
+
+        if isinstance(block_review, dict):
+            shared_allow = block_review.get("allowSharedReviewScreenshot")
+            for product_index, product in enumerate(as_list(block_review.get("products"))):
+                if not isinstance(product, dict):
+                    continue
+                entry = add_or_merge(product, f"subscriptions.reviewScreenshot.products[{product_index}]")
+                if shared_allow is not None:
+                    entry.setdefault("allowSharedReviewScreenshot", shared_allow)
+                merge_review_info(entry, product)
+        elif block_review and entries:
+            for entry in entries:
+                merge_review_info(entry, block_review)
+
+    for product_index, product in enumerate(as_list((config.get("subscriptionPricing") or {}).get("products"))):
+        if isinstance(product, dict):
+            add_or_merge(product, f"subscriptionPricing.products[{product_index}]")
+
+    return entries
+
+
+def subscription_review_screenshots_allow_shared(config: dict[str, Any], entries: list[dict[str, Any]]) -> bool:
+    if any(entry.get("allowSharedReviewScreenshot") is True for entry in entries):
+        return True
+    for block in subscription_review_screenshot_blocks(config):
+        review = block.get("reviewScreenshot") or block.get("reviewScreenshots")
+        if isinstance(review, dict) and review.get("allowSharedReviewScreenshot") is True:
+            return True
+    review_policy = config.get("subscriptionReviewScreenshots") or {}
+    return review_policy.get("allowSharedReviewScreenshot") is True
+
+
+def local_screenshot_pixel_summary(path: Path) -> dict[str, Any]:
+    try:
+        from PIL import Image, ImageStat
+    except ImportError:
+        return {"available": False, "message": "Pillow is not installed."}
+    with Image.open(path).convert("RGB") as image:
+        stat = ImageStat.Stat(image)
+        sample = image.resize((80, 115))
+        sample_pixels = list(sample.getdata())
+        dark_pixels = sum(1 for pixel in sample_pixels if sum(pixel) / 3 < 10)
+        return {
+            "available": True,
+            "width": image.width,
+            "height": image.height,
+            "meanLuminance": round(sum(stat.mean) / 3, 2),
+            "darkPixelRatio": round(dark_pixels / max(1, len(sample_pixels)), 4),
+            "extrema": image.getextrema(),
+        }
+
+
+def add_subscription_review_screenshot_pixel_issues(
+    issues: list[dict[str, str]],
+    field: str,
+    summary: dict[str, Any],
+) -> None:
+    if not summary.get("available", True):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": field,
+                "message": "Install Pillow to run the local subscription review screenshot black-screen check.",
+            }
+        )
+        return
+    mean_luminance = float(summary.get("meanLuminance") or 0)
+    dark_ratio = float(summary.get("darkPixelRatio") or 0)
+    if (
+        mean_luminance < SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_LUMINANCE
+        or dark_ratio > SUBSCRIPTION_REVIEW_SCREENSHOT_MAX_DARK_PIXEL_RATIO
+    ):
+        issues.append(
+            {
+                "severity": "error",
+                "field": field,
+                "message": "Subscription App Review screenshot appears blank or mostly black; replace it with a visible paywall/product screenshot before review.",
+            }
+        )
+
+
+def subscription_review_screenshot_duplicate_issues(
+    entries: list[dict[str, Any]], allow_shared: bool
+) -> list[dict[str, str]]:
+    if allow_shared:
+        return []
+    issues: list[dict[str, str]] = []
+    seen: dict[tuple[str, str], dict[str, Any]] = {}
+    for entry in entries:
+        plan = entry.get("expectedSelectedPlan")
+        if not plan:
+            continue
+        fingerprints = [
+            ("sourceFileChecksum", entry.get("sourceFileChecksum")),
+            ("renderedMd5", entry.get("renderedMd5") or entry.get("downloadedMd5")),
+            ("source", entry.get("source") or entry.get("file")),
+        ]
+        for fingerprint_type, value in fingerprints:
+            if not value:
+                continue
+            key = (fingerprint_type, str(value))
+            previous = seen.get(key)
+            if previous and previous.get("expectedSelectedPlan") != plan:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "field": "subscriptions.reviewScreenshot.products",
+                        "message": "Different subscription plans share the exact same App Review screenshot evidence. Use plan-specific screenshots with the matching weekly/monthly/yearly plan selected, or set allowSharedReviewScreenshot only when a shared screenshot is intentional.",
+                    }
+                )
+                break
+            seen[key] = entry
+    return issues
+
+
+def validate_subscription_review_screenshot_evidence(
+    config: dict[str, Any], issues: list[dict[str, str]]
+) -> None:
+    entries = subscription_review_screenshot_entries(config)
+    if not entries:
+        return
+    allow_shared = subscription_review_screenshots_allow_shared(config, entries)
+    plan_labels = {entry.get("expectedSelectedPlan") for entry in entries if entry.get("expectedSelectedPlan")}
+    if len(plan_labels) >= 2 and not allow_shared:
+        for index, entry in enumerate(entries):
+            if not entry.get("expectedSelectedPlan"):
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "field": f"subscriptions.reviewScreenshot.products[{index}].expectedSelectedPlan",
+                        "message": "Record the expected selected plan for each subscription App Review screenshot so weekly, monthly, and yearly screenshots can be checked before review.",
+                    }
+                )
+    issues.extend(subscription_review_screenshot_duplicate_issues(entries, allow_shared))
+
+    for index, entry in enumerate(entries):
+        source = entry.get("source") or entry.get("file")
+        if not source:
+            continue
+        source_path = Path(str(source)).expanduser()
+        if not source_path.exists():
+            continue
+        if source_path.stat().st_size < SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_BYTES:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"subscriptions.reviewScreenshot.products[{index}].source",
+                    "message": "Subscription App Review screenshot file is suspiciously small; black placeholder images often fail App Review.",
+                }
+            )
+        add_subscription_review_screenshot_pixel_issues(
+            issues,
+            f"subscriptions.reviewScreenshot.products[{index}].source",
+            local_screenshot_pixel_summary(source_path),
+        )
 
 
 def subscription_item_identifiers(item: dict[str, Any], product_map: dict[str, str]) -> set[str]:
@@ -2329,6 +2603,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
     validate_first_time_subscription_submission(config, issues)
+    validate_subscription_review_screenshot_evidence(config, issues)
 
     ip_review = config.get("ipReview") or {}
     if ip_review:
@@ -2820,6 +3095,166 @@ def upload_screenshots(
     return {"dryRun": False, "results": results}
 
 
+def apple_image_asset_url(image_asset: dict[str, Any]) -> str | None:
+    template_url = image_asset.get("templateUrl") or image_asset.get("url")
+    if not template_url:
+        return None
+    width = image_asset.get("width") or 640
+    height = image_asset.get("height") or 920
+    return (
+        str(template_url)
+        .replace("{w}", str(width))
+        .replace("{h}", str(height))
+        .replace("{f}", "png")
+    )
+
+
+def verify_subscription_review_screenshots(
+    config: dict[str, Any],
+    client: AppStoreConnectClient,
+    download_dir: Path | None = None,
+) -> dict[str, Any]:
+    entries = subscription_review_screenshot_entries(config)
+    if not entries:
+        return {
+            "ok": True,
+            "subscriptionCount": 0,
+            "warningCount": 0,
+            "errorCount": 0,
+            "issues": [],
+            "screenshots": [],
+        }
+    allow_shared = subscription_review_screenshots_allow_shared(config, entries)
+    issues: list[dict[str, str]] = []
+    screenshots: list[dict[str, Any]] = []
+    if download_dir:
+        download_dir.mkdir(parents=True, exist_ok=True)
+
+    for index, entry in enumerate(entries):
+        subscription_id = entry.get("subscriptionId") or entry.get("appleProductId") or entry.get("id")
+        product_id = entry.get("productId")
+        expected_plan = entry.get("expectedSelectedPlan") or infer_subscription_plan_label(entry)
+        field = f"subscriptions.reviewScreenshot.products[{index}]"
+        if not subscription_id:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".subscriptionId",
+                    "message": "A subscriptionId/appleProductId is required to verify the App Store Connect review screenshot.",
+                }
+            )
+            continue
+        try:
+            response = client.get(f"/v1/subscriptions/{subscription_id}/appStoreReviewScreenshot")
+        except AppStoreConnectError as exc:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field,
+                    "message": f"Could not read App Store Connect review screenshot for subscription {subscription_id}: {exc}",
+                }
+            )
+            continue
+        data = response.get("data")
+        if not isinstance(data, dict):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field,
+                    "message": "Subscription is missing the required App Review screenshot.",
+                }
+            )
+            continue
+
+        attrs = data.get("attributes") or {}
+        asset_state = attrs.get("assetDeliveryState") or {}
+        image_asset = attrs.get("imageAsset") or {}
+        screenshot = {
+            "productId": product_id,
+            "subscriptionId": str(subscription_id),
+            "expectedSelectedPlan": expected_plan,
+            "reviewScreenshotId": data.get("id"),
+            "assetDeliveryState": asset_state.get("state"),
+            "errors": asset_state.get("errors"),
+            "warnings": asset_state.get("warnings"),
+            "fileSize": attrs.get("fileSize"),
+            "sourceFileChecksum": attrs.get("sourceFileChecksum"),
+            "width": image_asset.get("width"),
+            "height": image_asset.get("height"),
+        }
+        screenshots.append(screenshot)
+
+        if asset_state.get("state") != "COMPLETE":
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".assetDeliveryState",
+                    "message": "Subscription App Review screenshot is not fully processed in App Store Connect.",
+                }
+            )
+        if asset_state.get("errors"):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".assetDeliveryState.errors",
+                    "message": "App Store Connect reported screenshot upload errors.",
+                }
+            )
+        if not image_asset.get("width") or not image_asset.get("height"):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".imageAsset",
+                    "message": "App Store Connect screenshot image dimensions are missing or zero.",
+                }
+            )
+        if int(attrs.get("fileSize") or 0) < SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_BYTES:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".fileSize",
+                    "message": "App Store Connect screenshot file is suspiciously small; this often indicates a black placeholder screenshot.",
+                }
+            )
+
+        image_url = apple_image_asset_url(image_asset)
+        if image_url and download_dir:
+            suffix = expected_plan or product_id or str(subscription_id)
+            target = download_dir / (re.sub(r"[^A-Za-z0-9_.-]+", "-", str(suffix)).strip("-") + ".png")
+            raw = urllib.request.urlopen(image_url, timeout=30).read()
+            target.write_bytes(raw)
+            downloaded_md5 = hashlib.md5(raw).hexdigest()
+            pixel_summary = local_screenshot_pixel_summary(target)
+            screenshot["downloaded"] = str(target)
+            screenshot["downloadedBytes"] = len(raw)
+            screenshot["downloadedMd5"] = downloaded_md5
+            screenshot["pixelSummary"] = pixel_summary
+            add_subscription_review_screenshot_pixel_issues(issues, field + ".imageAsset", pixel_summary)
+
+    remote_entries = [
+        {
+            "productId": screenshot.get("productId"),
+            "subscriptionId": screenshot.get("subscriptionId"),
+            "sourceFileChecksum": screenshot.get("sourceFileChecksum"),
+            "downloadedMd5": screenshot.get("downloadedMd5"),
+            "expectedSelectedPlan": screenshot.get("expectedSelectedPlan"),
+        }
+        for screenshot in screenshots
+    ]
+    issues.extend(subscription_review_screenshot_duplicate_issues(remote_entries, allow_shared))
+    errors = [issue for issue in issues if issue["severity"] == "error"]
+    warnings = [issue for issue in issues if issue["severity"] == "warning"]
+    return {
+        "ok": not errors,
+        "subscriptionCount": len(entries),
+        "allowSharedReviewScreenshot": allow_shared,
+        "errorCount": len(errors),
+        "warningCount": len(warnings),
+        "issues": issues,
+        "screenshots": screenshots,
+    }
+
+
 def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | None) -> dict[str, Any]:
     file_path = Path(args.file).expanduser()
     version_plan = None
@@ -3287,6 +3722,16 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_config_argument(shots)
     shots.add_argument("--yes", action="store_true", help="Upload screenshots. Without this flag, prints a dry run.")
 
+    verify_sub_shots = sub.add_parser(
+        "verify-subscription-review-screenshots",
+        help="Read subscription App Review screenshots from App Store Connect and check for black or shared plan screenshots.",
+    )
+    add_common_config_argument(verify_sub_shots)
+    verify_sub_shots.add_argument(
+        "--download-dir",
+        help="Optional directory for downloading rendered App Store Connect screenshots before pixel checks.",
+    )
+
     apps = sub.add_parser("list-apps", help="List App Store Connect apps visible to the API key.")
     apps.add_argument("--bundle-id")
     apps.add_argument("--name")
@@ -3378,6 +3823,14 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "upload-screenshots":
             client = AppStoreConnectClient() if args.yes else None
             print_json(upload_screenshots(load_json(args.config), client, args.yes))
+        elif args.command == "verify-subscription-review-screenshots":
+            print_json(
+                verify_subscription_review_screenshots(
+                    load_json(args.config),
+                    AppStoreConnectClient(),
+                    Path(args.download_dir).expanduser() if args.download_dir else None,
+                )
+            )
         elif args.command == "list-apps":
             query = {}
             if args.bundle_id:
