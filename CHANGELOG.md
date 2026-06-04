@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.10.0] - 2026-06-04
+
+- Added a release-readiness gate for first-time IAP and subscription products that are still in `READY_TO_SUBMIT`.
+- Documented Apple's website-only first-time product selection requirement and the `FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION` API rejection.
+- Added template evidence fields for recording the uploaded selected build and App Store Connect product-selection confirmation before a submission is declared ready for review.
+
 ## [1.9.1] - 2026-06-03
 
 - Removed app-specific release-history wording so plugin documentation and changelog entries stay generic and reusable for any app category.

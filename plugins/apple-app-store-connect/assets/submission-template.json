@@ -403,6 +403,15 @@
       "paidFeatureScreenshot": true
     }
   ],
+  "firstTimeSubscriptionSubmission": {
+    "status": "not_started",
+    "requiresNewAppVersion": true,
+    "manualWebsiteSelectionRequired": true,
+    "selectedInAppStoreConnect": false,
+    "selectedBuildId": "",
+    "selectedProductIds": [],
+    "notes": "For an app's first IAP or subscription, upload and select a new build, then use appstoreconnect.apple.com to select the products in the app version's In-App Purchases and Subscriptions section before submitting for review. Apple's public subscriptionSubmissions API can reject this first-time case with FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION."
+  },
   "screenshots": [
     {
       "localizationId": "version-localization-id",

@@ -288,7 +288,7 @@
         "review screenshots",
         "submission"
       ],
-      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Screenshot copy should make paid or subscription-only features unmistakable. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; weekly $4.99, monthly $9.99, and yearly $29.99 are the default plan prices, each with a 14-day free trial unless the builder records an override. Yearly should be a real best-value anchor, and weekly should reflect short-horizon or event-driven intent."
+      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Apple's public subscription submission API can reject the first-time case with FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION, so the products may need to be selected in appstoreconnect.apple.com with the uploaded app-version build before review submission. The plugin validates selected-build and UI-selection evidence before calling a release ready. Screenshot copy should make paid or subscription-only features unmistakable. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; weekly $4.99, monthly $9.99, and yearly $29.99 are the default plan prices, each with a 14-day free trial unless the builder records an override. Yearly should be a real best-value anchor, and weekly should reflect short-horizon or event-driven intent."
     },
     {
       "group": "Onboarding, paywall, and review prompts",

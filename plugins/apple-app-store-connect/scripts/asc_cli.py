@@ -125,6 +125,22 @@ CORE_LOOP_LOCKED_MARKERS = {
     "primary workflow",
     "all content",
 }
+FIRST_TIME_SUBSCRIPTION_OK_STATUSES = {
+    "approved",
+    "in_review",
+    "not_applicable",
+    "not_first_time",
+    "pending_binary_approval",
+    "selected_with_app_version",
+    "submitted_with_app_version",
+    "waiting_for_review",
+}
+FIRST_TIME_SUBSCRIPTION_OK_FLAGS = {
+    "includedWithAppVersion",
+    "selectedInAppStoreConnect",
+    "submittedWithAppVersion",
+    "uiSelectionConfirmed",
+}
 
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
@@ -146,6 +162,10 @@ SKIPPED_PROJECT_DIRS = {
 def load_json(path: str | Path) -> Any:
     with Path(path).expanduser().open("r", encoding="utf-8") as file:
         return json.load(file)
+
+
+def normalized_status(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
 
 
 def write_json(path: str | Path, value: Any) -> None:
@@ -1898,6 +1918,115 @@ def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str,
         )
 
 
+def iter_subscription_status_entries(value: Any, path: str = "") -> list[tuple[str, str]]:
+    entries: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            nested_path = f"{path}.{key}" if path else str(key)
+            if key in {
+                "appStoreRawStatus",
+                "appleStatus",
+                "rawStoreStatus",
+                "raw_store_status",
+                "state",
+                "status",
+                "storeStatus",
+                "store_status",
+                "subscriptionProducts",
+            }:
+                if isinstance(nested, dict):
+                    entries.extend(iter_subscription_status_entries(nested, nested_path))
+                else:
+                    entries.append((nested_path, normalized_status(nested)))
+            elif key in {
+                "firstTimeSubmission",
+                "firstTimeSubscriptionSubmission",
+                "products",
+                "releaseVerification",
+                "reviewSubmission",
+                "submissionStatus",
+                "subscriptions",
+            }:
+                entries.extend(iter_subscription_status_entries(nested, nested_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            entries.extend(iter_subscription_status_entries(item, f"{path}[{index}]"))
+    return entries
+
+
+def first_time_subscription_ready_paths(config: dict[str, Any]) -> list[str]:
+    markers = []
+    for path, status in iter_subscription_status_entries(config):
+        if (
+            "ready_to_submit" in status
+            or "ui_selection_required" in status
+            or "first_subscription_must_be_submitted_on_version" in status
+        ):
+            markers.append(path)
+    return markers
+
+
+def find_first_time_subscription_submission_state(config: dict[str, Any]) -> dict[str, Any]:
+    candidates: list[dict[str, Any]] = []
+    subscriptions = config.get("subscriptions")
+    if isinstance(subscriptions, dict):
+        for key in ("firstTimeSubmission", "firstTimeSubscriptionSubmission", "submissionStatus"):
+            value = subscriptions.get(key)
+            if isinstance(value, dict):
+                candidates.append(value)
+    for key in ("firstTimeSubmission", "firstTimeSubscriptionSubmission"):
+        value = config.get(key)
+        if isinstance(value, dict):
+            candidates.append(value)
+    review_submission = config.get("reviewSubmission")
+    if isinstance(review_submission, dict):
+        for key in ("firstTimeInAppPurchases", "firstTimeSubscriptions"):
+            value = review_submission.get(key)
+            if isinstance(value, dict):
+                candidates.append(value)
+
+    for candidate in candidates:
+        status = normalized_status(candidate.get("status") or candidate.get("state"))
+        if status in FIRST_TIME_SUBSCRIPTION_OK_STATUSES:
+            return {"ok": True, "status": status, "source": candidate}
+        if any(candidate.get(flag) is True for flag in FIRST_TIME_SUBSCRIPTION_OK_FLAGS):
+            return {"ok": True, "status": status or "confirmed", "source": candidate}
+    if candidates:
+        latest = candidates[-1]
+        return {
+            "ok": False,
+            "status": normalized_status(latest.get("status") or latest.get("state")),
+            "source": latest,
+        }
+    return {"ok": False, "status": "", "source": None}
+
+
+def validate_first_time_subscription_submission(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    ready_paths = first_time_subscription_ready_paths(config)
+    if not ready_paths:
+        return
+
+    submission_state = find_first_time_subscription_submission_state(config)
+    if submission_state["ok"]:
+        return
+
+    if not config.get("version", {}).get("buildId"):
+        issues.append(
+            {
+                "severity": "error",
+                "field": "version.buildId",
+                "message": "First-time subscriptions in Ready to Submit state require a new uploaded, processed, and selected app-version build before review.",
+            }
+        )
+    issues.append(
+        {
+            "severity": "error",
+            "field": "firstTimeSubscriptionSubmission",
+            "message": "First-time IAPs/subscriptions that are still Ready to Submit must be selected with the app version in appstoreconnect.apple.com before the app is ready for review. Apple's public subscriptionSubmissions API rejects this first-time case with FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION.",
+        }
+    )
+
+
 def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     validate_subscription_pricing_strategy(config, issues)
@@ -2199,6 +2328,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
+    validate_first_time_subscription_submission(config, issues)
 
     ip_review = config.get("ipReview") or {}
     if ip_review:

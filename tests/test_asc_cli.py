@@ -99,6 +99,67 @@ class AscCliValidationTests(unittest.TestCase):
             any("Terms of Use or EULA URL" in issue["message"] for issue in result["issues"] if issue["severity"] == "error")
         )
 
+    def test_first_time_ready_to_submit_subscriptions_require_ui_selection(self):
+        cli = load_cli()
+        config = {
+            "version": {"versionString": "1.0.0", "buildId": "build-5"},
+            "subscriptions": {
+                "products": [
+                    {
+                        "productId": "com.example.product.pro.weekly",
+                        "status": "READY_TO_SUBMIT",
+                    }
+                ],
+                "firstTimeSubmission": {
+                    "status": "ui_selection_required",
+                },
+            },
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertFalse(result["ok"])
+        self.assertIn("firstTimeSubscriptionSubmission", fields)
+
+    def test_first_time_ready_to_submit_subscriptions_require_selected_build(self):
+        cli = load_cli()
+        config = {
+            "version": {"versionString": "1.0.0"},
+            "subscriptions": [
+                {
+                    "productId": "com.example.product.pro.weekly",
+                    "status": "READY_TO_SUBMIT",
+                    "reviewScreenshot": "screenshots/review/pro-paywall.png",
+                    "paidFeatureScreenshot": True,
+                }
+            ],
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertFalse(result["ok"])
+        self.assertIn("version.buildId", fields)
+        self.assertIn("firstTimeSubscriptionSubmission", fields)
+
+    def test_first_time_subscription_ui_confirmation_allows_ready_state(self):
+        cli = load_cli()
+        config = {
+            "version": {"versionString": "1.0.0", "buildId": "build-5"},
+            "subscriptions": {
+                "products": [
+                    {
+                        "productId": "com.example.product.pro.weekly",
+                        "status": "READY_TO_SUBMIT",
+                    }
+                ],
+                "firstTimeSubmission": {
+                    "status": "selected_with_app_version",
+                    "selectedInAppStoreConnect": True,
+                },
+            },
+        }
+        result = cli.validate_submission_config(config)
+        self.assertTrue(result["ok"])
+        self.assertFalse(any(issue["field"] == "firstTimeSubscriptionSubmission" for issue in result["issues"]))
+
     def test_ip_review_warns_when_independent_app_disclaimers_are_missing(self):
         cli = load_cli()
         config = {

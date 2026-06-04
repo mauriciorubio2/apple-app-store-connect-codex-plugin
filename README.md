@@ -22,6 +22,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
 - Plan and apply subscription product prices and introductory offers when App Store Connect price point IDs are supplied.
+- Detect first-time IAP/subscription products left in `READY_TO_SUBMIT` and require selected-build plus App Store Connect website selection evidence before review readiness.
 - Check whether subscription pricing research is stale and prompt Codex to refresh weekly/monthly/yearly benchmarks every six months.
 - Default subscription launches to weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` Pro plans, each with a 14-day free trial unless a builder records an override.
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
@@ -132,6 +133,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py plan --config appstor
 ```
 
 For apps with auto-renewable subscriptions, validation expects the App Store description to include a `SUBSCRIPTION INFORMATION:` section with trial/plan context, auto-renewal and cancellation language, plus functional Privacy Policy and Terms of Use/EULA links. This catches the common App Review blocker where Terms of Use is present in-app but missing from App Store metadata.
+
+For an app's first IAP or subscription review, Apple may require the products to be selected with the new app version inside `appstoreconnect.apple.com`. If the products remain `READY_TO_SUBMIT`, upload and select a processed build first, then select the products in the app version's In-App Purchases and Subscriptions section. Apple's public `subscriptionSubmissions` API can reject this first-time case with `FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION`, so the plugin validates local evidence fields instead of treating the API failure as a credential issue.
 
 Apply metadata after approval:
 
@@ -246,6 +249,8 @@ Creators can still change the setup. Set `creatorCanOverride` to true, adjust `t
 Pricing research belongs beside the subscription setup. Keep `pricingResearch.lastReviewedOn`, `reviewIntervalMonths`, `nextReviewDue`, and `sources` current. The plugin defaults to a six-month review cycle because plan-duration benchmarks, competitive price anchors, category willingness to pay, and conversion patterns change regularly. The default price anchors are weekly `$4.99`, monthly `$9.99`, and yearly `$29.99`; add `customPriceReason`, `customCadenceReason`, or `customIntroOfferReason` when a different launch setup is intentional.
 
 Default paywalls should use `Start 14-day free trial` as the primary CTA and show `✓ No payment due now` below the button only when StoreKit or RevenueCat confirms the selected product has a real free-trial introductory offer.
+
+First-time IAP/subscription products need extra release evidence when they are still `READY_TO_SUBMIT`. Upload and select the processed build, select the products with the app version in App Store Connect's website UI when Apple requires it, and record the confirmation in `firstTimeSubscriptionSubmission`. Do not call the release ready while products are still waiting for first review without that selected-version evidence.
 
 For review prompts, the plugin validates that `requestReview` is not tied to launch, onboarding, paywall, purchase, cancellation, error, permission, or direct "rate us" button contexts. Use a manual App Store write-review link for explicit user-initiated review actions.
 
