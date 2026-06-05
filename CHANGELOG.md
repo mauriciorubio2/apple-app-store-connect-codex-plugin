@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.3] - 2026-06-05
+
+- Accepted RevenueCat v2 `items` project-list payloads and Codex-rendered text project lists as valid preflight proof after OAuth reauthorization.
+
 ## [1.14.2] - 2026-06-05
 
 - Allowed explicitly marked initial app or platform releases to omit `versionLocalizations[].whatsNew` without a validation warning, matching App Store Connect first-platform behavior.

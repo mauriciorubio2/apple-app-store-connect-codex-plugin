@@ -1,6 +1,6 @@
 {
   "name": "apple-app-store-connect",
-  "version": "1.14.2",
+  "version": "1.14.3",
   "description": "Automate iOS and macOS App Store Connect release prep, access preflight, versioning, metadata, public screenshot price-reference checks, subscription review screenshot checks, iOS binary asset-catalog preflight, weekly/monthly/yearly subscription pricing with 14-day trial defaults, Free/Pro planning, RevenueCat coordination, build uploads, universal-purchase sync checks, and review submission workflows from Codex.",
   "author": {
     "name": "mauriciorubio2",

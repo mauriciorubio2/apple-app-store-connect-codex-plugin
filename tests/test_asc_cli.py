@@ -993,6 +993,31 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertEqual(result["status"], "valid")
         self.assertEqual(result["visibleProjects"], 1)
 
+    def test_revenuecat_access_probe_accepts_v2_items_list(self):
+        cli = load_cli()
+        result = cli.revenuecat_access_probe(
+            {
+                "object": "list",
+                "items": [
+                    {"object": "project", "id": "proj123", "name": "Example"},
+                    {"object": "project", "id": "proj456", "name": "Another"},
+                ],
+                "next_page": None,
+            }
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "valid")
+        self.assertEqual(result["visibleProjects"], 2)
+
+    def test_revenuecat_access_probe_accepts_codex_text_project_list(self):
+        cli = load_cli()
+        result = cli.revenuecat_access_probe(
+            'object: list\nitems[2]{object,id,name}:\n  project,proj123,Example\n  project,proj456,Another\nnext_page: null'
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "valid")
+        self.assertEqual(result["visibleProjects"], 2)
+
     def test_preflight_access_prompts_for_reauthorization_when_blocked(self):
         cli = load_cli()
         result = cli.preflight_access(

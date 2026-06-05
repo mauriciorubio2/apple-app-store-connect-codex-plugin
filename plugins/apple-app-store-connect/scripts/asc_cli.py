@@ -4150,6 +4150,8 @@ def revenuecat_access_probe(payload: Any = None) -> dict[str, Any]:
             project_count = len(payload["projects"])
         elif isinstance(payload.get("data"), list):
             project_count = len(payload["data"])
+        elif isinstance(payload.get("items"), list):
+            project_count = len(payload["items"])
         else:
             project_count = None
         if project_count is not None:
@@ -4161,6 +4163,15 @@ def revenuecat_access_probe(payload: Any = None) -> dict[str, Any]:
                 "visibleProjects": project_count,
                 "message": "RevenueCat MCP access returned project data without an authorization failure.",
             }
+    if "object: list" in lowered and "project," in lowered:
+        return {
+            "ok": True,
+            "status": "valid",
+            "mcpServer": "RevenueCat",
+            "mcpUrl": REVENUECAT_MCP_URL,
+            "visibleProjects": lowered.count("project,"),
+            "message": "RevenueCat MCP access returned project data without an authorization failure.",
+        }
     return {
         "ok": False,
         "status": "unrecognized_probe_result",
