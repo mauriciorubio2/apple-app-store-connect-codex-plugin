@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,20 @@ DISPLAY_SIZES = {
     "APP_IPAD_PRO_3GEN_11": (1668, 2388),
     "APP_DESKTOP": (2880, 1800),
 }
+
+
+PRICE_REFERENCE_PATTERNS = [
+    (
+        "currency amount",
+        re.compile(r"(?i)(?:[$€£¥]\s?\d|\b(?:usd|aud|cad|eur|gbp)\s?\d|\b\d+(?:\.\d{2})?\s?(?:usd|aud|cad|eur|gbp)\b)"),
+    ),
+    ("free reference", re.compile(r"(?i)\bfree\b")),
+    ("trial reference", re.compile(r"(?i)\b(?:trial|introductory offer)\b")),
+    ("discount reference", re.compile(r"(?i)\b(?:discount|discounted|sale|save|savings)\b|\b\d+\s?%\s?off\b")),
+    ("no-payment reference", re.compile(r"(?i)\b(?:no payment due|no payment|pay nothing)\b")),
+]
+
+SCREENSHOT_TEXT_FIELDS = ("headline", "subheadline", "cta", "ctaNote", "paidBadge")
 
 
 def load_pillow():
@@ -34,6 +49,42 @@ def load_pillow():
 def load_json(path: str | Path) -> dict[str, Any]:
     with Path(path).expanduser().open("r", encoding="utf-8") as file:
         return json.load(file)
+
+
+def public_screenshot_price_reference_issues(config: dict[str, Any]) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+    for index, screen in enumerate(config.get("screens", [])):
+        for field in SCREENSHOT_TEXT_FIELDS:
+            value = screen.get(field)
+            if not isinstance(value, str):
+                continue
+            for kind, pattern in PRICE_REFERENCE_PATTERNS:
+                if pattern.search(value):
+                    issues.append(
+                        {
+                            "field": f"screens[{index}].{field}",
+                            "kind": kind,
+                            "text": value,
+                        }
+                    )
+    return issues
+
+
+def validate_public_screenshot_copy(config: dict[str, Any]) -> None:
+    issues = public_screenshot_price_reference_issues(config)
+    if not issues:
+        return
+    if config.get("allowPriceReferencesInScreenshots") and config.get("priceReferenceOverrideReason"):
+        return
+    sample = "; ".join(f"{issue['field']} contains {issue['kind']}" for issue in issues[:4])
+    raise ValueError(
+        "Public App Store screenshot overlay copy cannot include price, free, trial, "
+        "discount, or no-payment wording. "
+        f"{sample}. Put pricing/trial/no-payment copy in the App Store description, "
+        "in-app paywall, subscription product metadata, or private App Review screenshots "
+        "instead. For non-public diagnostic renders only, set "
+        "allowPriceReferencesInScreenshots=true with priceReferenceOverrideReason."
+    )
 
 
 def hex_color(value: str) -> tuple[int, int, int]:
@@ -239,6 +290,7 @@ def render_one(config: dict[str, Any], screen: dict[str, Any], output_dir: Path)
 def render(config_path: str | Path) -> dict[str, Any]:
     config_path = Path(config_path).expanduser()
     config = load_json(config_path)
+    validate_public_screenshot_copy(config)
     output_dir = Path(config.get("outputDir", "generated-screenshots")).expanduser()
     if not output_dir.is_absolute():
         output_dir = Path.cwd() / output_dir

@@ -364,7 +364,7 @@
     "description": "Lead with the strongest benefit in the first sentence, then use concise feature bullets. Avoid prices and keyword stuffing.",
     "keywords": "Use relevant comma-separated terms, avoid duplicates, category names, competitor names, trademarks, offensive terms, and spaces after commas.",
     "promotionalText": "Use for current news or offers, not search ranking keywords.",
-    "screenshots": "Make the first one to three images explain the app's core value with a big bold headline, colorful background, and visible CTA. Use one benefit per screenshot. Show the Free product as genuinely useful, and mark subscription or paid-only features clearly.",
+    "screenshots": "Make the first one to three images explain the app's core value with a big bold headline, colorful background, and visible neutral CTA. Use one benefit per screenshot. Show the base product as genuinely useful, mark subscription or paid-only features clearly, and avoid price/free/trial/discount/no-payment wording in public screenshot overlays.",
     "customProductPages": "Match screenshots, promo text, and keywords to a specific ad group, audience, feature, or seasonal intent."
   }
 }

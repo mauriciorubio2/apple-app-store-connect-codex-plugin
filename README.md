@@ -18,6 +18,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
 - Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
 - Generate brighter, conversion-focused screenshot composites with salesy ASO/Apple Ads-aware headers, large CTA pills, large device captures, and paid-feature badges.
+- Block price, free, trial, discount, savings, and no-payment wording in public App Store screenshot overlay copy before rendering.
 - Guide iOS app icon selection with five distinct, App Store-safe design options before replacing bundled icon assets.
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
@@ -277,7 +278,7 @@ python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
   --config appstore-screenshot-recipe.json
 ```
 
-Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid or lightly patterned branded backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. Make the CTA pill and device capture large enough to inspect on mobile App Store pages. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and paywall or upgrade value with a CTA note such as `✓ No payment due now`.
+Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid or lightly patterned branded backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. Make the CTA pill and device capture large enough to inspect on mobile App Store pages. Public App Store screenshots should not include prices, `free`, trial, discount, savings, or no-payment language; keep those details in the app description, in-app paywall, subscription product metadata, or private App Review material. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and Pro upgrade value with neutral screenshot CTAs.
 
 ## App Icon Options
 

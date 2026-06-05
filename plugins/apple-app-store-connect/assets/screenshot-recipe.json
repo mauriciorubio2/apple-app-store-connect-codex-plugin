@@ -15,7 +15,8 @@
     "Keep the first three screenshots focused on core value, high-intent search/action, and the strongest differentiator.",
     "Every App Store screenshot should have a big bold headline, short benefit line, visible CTA pill, colorful branded background, and a large enough device capture to inspect the UI.",
     "Use bright solid or lightly patterned backgrounds for App Store search contrast, one benefit per screenshot, and paid labels for Pro-only features.",
-    "For subscription apps, the paywall screenshot should show Start 14-day free trial and the check-mark No payment due now reassurance only when the app has a real introductory offer."
+    "Do not put price, free, trial, discount, savings, or no-payment wording in public App Store screenshots; keep that copy in the app description, in-app paywall, subscription metadata, or private App Review material.",
+    "For subscription apps, public screenshots can show Pro value and plan UI, but CTAs should stay neutral, such as Explore Pro features or Compare Pro plans."
   ],
   "screens": [
     {
@@ -24,7 +25,7 @@
       "background": "#FFB81C",
       "headline": "Track the thing users came for",
       "subheadline": "Name the core outcome using natural ASO keywords.",
-      "cta": "Free to download"
+      "cta": "Open the dashboard"
     },
     {
       "source": "screenshots/raw/02-search-workflow.png",
@@ -40,7 +41,7 @@
       "background": "#FF4F5E",
       "headline": "Show the feature that sells",
       "subheadline": "Make the strongest paid or differentiating feature obvious.",
-      "cta": "Start 14-day free trial",
+      "cta": "Pro feature",
       "paid": true
     },
     {
@@ -65,9 +66,8 @@
       "output": "06-paywall.png",
       "background": "#FFD84D",
       "headline": "Upgrade with confidence",
-      "subheadline": "Show the paywall or plan screen with clear trial and subscription context.",
-      "cta": "Start 14-day free trial",
-      "ctaNote": "✓ No payment due now",
+      "subheadline": "Show plan choices with clear Pro value and no public price claims.",
+      "cta": "Compare Pro plans",
       "paid": true
     }
   ]

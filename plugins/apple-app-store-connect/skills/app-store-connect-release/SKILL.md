@@ -167,10 +167,11 @@ Apple allows one to ten screenshots per supported device size/localization. The 
 - Do not upload plain raw app screenshots by themselves for App Store marketing sets. Composite them into a store screenshot with a big bold sales headline at the top, a short benefit line, a visible CTA pill, and enough colorful branded background to stand out in search results.
 - Use bright solid or lightly patterned branded backgrounds that stand out in search results while preserving app-legibility. Avoid busy backgrounds that compete with the device capture.
 - Make one benefit unmistakable per screenshot and align it with high-intent ASO/Apple Ads search terms.
-- Keep overlay copy short enough to scan, with a sales-focused header and an explicit CTA such as "Free to download", "Track every kickoff", "Start 14-day free trial", or "Included with Pro".
+- Keep overlay copy short enough to scan, with a sales-focused header and an explicit neutral CTA such as "Open the dashboard", "Track every kickoff", "Compare Pro plans", or "Pro feature".
+- Do not put price, free, trial, discount, savings, or no-payment wording in public App Store screenshots or previews. Apple may treat references to free or discounted services as price references in screenshot metadata. Keep those details in the App Store description, in-app paywall, subscription product metadata, or private App Review material instead.
 - Make the CTA pill and device capture large enough to read in App Store search/gallery views. Small device mockups and tiny CTAs underperform visually, especially on mobile App Store pages.
 - Include at least one dark-mode screenshot if dark mode is a meaningful part of the experience.
-- For subscription apps, make the Free experience look useful in the first screenshots and show at least one Pro benefit as an upgrade. If subscriptions or paid features are shown, mark them clearly in the screenshot itself with labels such as "Pro feature", "Included with Pro", "Full set with Pro", or the subscription tier name.
+- For subscription apps, make the base experience look useful in the first screenshots and show at least one Pro benefit as an upgrade. If subscriptions or paid features are shown, mark them clearly in the screenshot itself with labels such as "Pro feature", "Full set with Pro", or the subscription tier name.
 - Do not imply a paid feature is free. Do not hide terms, paywall state, or subscription context.
 
 ## Screenshot Recipe
@@ -185,12 +186,12 @@ Use this repeatable recipe when creating App Store screenshots for a new app:
    - Screenshot 3: strongest differentiator or paid feature, clearly labeled if Pro.
    - Screenshot 4: progress, organization, dashboard, groups, timeline, or status view.
    - Screenshot 5: depth feature such as history, archive, analytics, exports, or rankings.
-   - Screenshot 6: paywall, trial, subscription value, or upgrade screen when monetized.
+   - Screenshot 6: paywall, subscription value, or upgrade screen when monetized, with neutral public screenshot copy.
 4. Use bright solid or simple branded color backgrounds, not plain raw captures and not busy patterns, so screenshots stand out in App Store search.
 5. Keep text short and mandatory: one big bold sales-focused headline, one benefit line, and one large CTA pill.
 6. Include search-friendly wording naturally, but do not keyword-stuff or make claims the app cannot support.
-7. For paid features, set `paid: true` and use a CTA or badge that names the tier, so the renderer adds a visible Pro label and the screenshot cannot be mistaken for a free feature.
-8. Render a contact sheet or quick preview and check headline size, CTA visibility, Pro labels, text legibility, and device UI legibility before upload. If the device UI is hard to inspect, increase `phoneWidthRatio` before upload.
+7. For paid features, set `paid: true` and use a CTA or badge that names the tier, so the renderer adds a visible Pro label and the screenshot cannot be mistaken for base-tier functionality.
+8. Render a contact sheet or quick preview and check headline size, CTA visibility, Pro labels, text legibility, device UI legibility, and absence of price/free/trial/discount/no-payment copy before upload. If the device UI is hard to inspect, increase `phoneWidthRatio` before upload.
 
 The bundled recipe is intentionally generic and should be copied, not edited in place:
 

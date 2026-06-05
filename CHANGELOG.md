@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.13.0] - 2026-06-05
+
+- Added public App Store screenshot copy validation that blocks price, free, trial, discount, savings, and no-payment wording before rendered screenshots are produced.
+- Updated screenshot recipe defaults to use neutral CTA copy while preserving visible Pro/paid-feature labels.
+- Clarified release guidance so trial/no-payment wording stays in the in-app paywall, App Store description, subscription metadata, or private App Review material, not public screenshot overlays.
+
 ## [1.12.0] - 2026-06-05
 
 - Added validation warnings for missing `versionLocalizations[].whatsNew` so App Store version history/changelog copy is not forgotten during release prep.
