@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -203,6 +204,197 @@ def write_json(path: str | Path, value: Any) -> None:
 def shell_quote(value: str | Path) -> str:
     text = str(value)
     return "'" + text.replace("'", "'\"'\"'") + "'"
+
+
+def summarize_app_info(
+    *,
+    path: str,
+    info: dict[str, Any] | None,
+    assets_car_present: bool,
+    assets_car_path: str | None,
+) -> dict[str, Any]:
+    info = info or {}
+    return {
+        "path": path,
+        "bundleIdentifier": info.get("CFBundleIdentifier"),
+        "bundleShortVersion": info.get("CFBundleShortVersionString"),
+        "bundleVersion": info.get("CFBundleVersion"),
+        "supportedPlatforms": info.get("CFBundleSupportedPlatforms", []),
+        "minimumOSVersion": info.get("MinimumOSVersion"),
+        "infoPlistPresent": bool(info),
+        "assetsCarPresent": assets_car_present,
+        "assetsCarPath": assets_car_path,
+    }
+
+
+def filesystem_app_summaries(path: Path) -> list[dict[str, Any]]:
+    apps: list[Path] = []
+    if path.suffix == ".app" and path.is_dir():
+        apps = [path]
+    elif path.suffix == ".xcarchive" and path.is_dir():
+        apps = sorted((path / "Products" / "Applications").glob("*.app"))
+    elif path.is_dir():
+        apps = sorted(path.glob("*.app"))
+        if not apps:
+            apps = sorted(path.rglob("*.app"))
+
+    summaries: list[dict[str, Any]] = []
+    for app in apps:
+        info_path = app / "Info.plist"
+        info: dict[str, Any] | None = None
+        if info_path.exists():
+            with info_path.open("rb") as file:
+                info = plistlib.load(file)
+        assets_path = app / "Assets.car"
+        summaries.append(
+            summarize_app_info(
+                path=str(app),
+                info=info,
+                assets_car_present=assets_path.exists(),
+                assets_car_path=str(assets_path) if assets_path.exists() else None,
+            )
+        )
+    return summaries
+
+
+def ipa_app_summaries(path: Path) -> list[dict[str, Any]]:
+    with zipfile.ZipFile(path) as archive:
+        names = archive.namelist()
+        name_set = set(names)
+        app_roots = sorted(
+            {
+                name[: name.index(".app/") + len(".app/")]
+                for name in names
+                if name.startswith("Payload/") and ".app/" in name
+            }
+        )
+        summaries: list[dict[str, Any]] = []
+        for root in app_roots:
+            info_name = root + "Info.plist"
+            info: dict[str, Any] | None = None
+            if info_name in name_set:
+                info = plistlib.loads(archive.read(info_name))
+            assets_name = root + "Assets.car"
+            summaries.append(
+                summarize_app_info(
+                    path=root.rstrip("/"),
+                    info=info,
+                    assets_car_present=assets_name in name_set,
+                    assets_car_path=assets_name if assets_name in name_set else None,
+                )
+            )
+    return summaries
+
+
+def verify_build_assets(
+    path: str | Path,
+    *,
+    expect_bundle_id: str | None = None,
+    expect_platform: str | None = None,
+    require_assets_car: bool = True,
+) -> dict[str, Any]:
+    artifact = Path(path).expanduser()
+    issues: list[dict[str, Any]] = []
+    apps: list[dict[str, Any]] = []
+
+    if not artifact.exists():
+        issues.append(
+            {
+                "severity": "error",
+                "field": "path",
+                "message": f"Build artifact not found: {artifact}",
+            }
+        )
+    elif artifact.suffix.lower() == ".ipa":
+        apps = ipa_app_summaries(artifact)
+    elif artifact.suffix.lower() in {".app", ".xcarchive"} or artifact.is_dir():
+        apps = filesystem_app_summaries(artifact)
+    else:
+        issues.append(
+            {
+                "severity": "error",
+                "field": "path",
+                "message": "Build asset verification supports .ipa, .xcarchive, .app, or directories containing .app bundles.",
+            }
+        )
+
+    if artifact.exists() and not apps and not issues:
+        issues.append(
+            {
+                "severity": "error",
+                "field": "apps",
+                "message": "No .app bundle was found inside the build artifact.",
+            }
+        )
+
+    for index, app in enumerate(apps):
+        field = f"apps[{index}]"
+        if not app.get("infoPlistPresent"):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"{field}.Info.plist",
+                    "message": "The app bundle is missing Info.plist.",
+                }
+            )
+        if expect_bundle_id and app.get("bundleIdentifier") != expect_bundle_id:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"{field}.CFBundleIdentifier",
+                    "message": f"Expected bundle identifier {expect_bundle_id}, found {app.get('bundleIdentifier') or 'none'}.",
+                }
+            )
+        platforms = app.get("supportedPlatforms") or []
+        if expect_platform and expect_platform not in platforms:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"{field}.CFBundleSupportedPlatforms",
+                    "message": f"Expected platform {expect_platform} in CFBundleSupportedPlatforms, found {platforms or 'none'}.",
+                }
+            )
+        if require_assets_car and not app.get("assetsCarPresent"):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"{field}.Assets.car",
+                    "message": "Missing Assets.car in the app bundle. Uploading this binary can trigger ITMS-90546: Missing asset catalog.",
+                }
+            )
+
+    errors = [issue for issue in issues if issue["severity"] == "error"]
+    return {
+        "ok": not errors,
+        "path": str(artifact),
+        "appCount": len(apps),
+        "expectBundleId": expect_bundle_id,
+        "expectPlatform": expect_platform,
+        "requireAssetsCar": require_assets_car,
+        "errorCount": len(errors),
+        "issues": issues,
+        "apps": apps,
+    }
+
+
+def verify_upload_binary_assets_if_needed(args: argparse.Namespace, file_path: Path, ext: str) -> dict[str, Any] | None:
+    if getattr(args, "skip_binary_asset_check", False):
+        return None
+    platform = str(getattr(args, "platform", "") or "").upper()
+    if platform != "IOS" or ext != ".ipa":
+        return None
+    if not file_path.exists():
+        return None
+    check = verify_build_assets(
+        file_path,
+        expect_bundle_id=getattr(args, "expect_bundle_id", None),
+        expect_platform=getattr(args, "expect_platform", None) or "iPhoneOS",
+        require_assets_car=True,
+    )
+    if not check["ok"]:
+        messages = "; ".join(issue["message"] for issue in check["issues"] if issue["severity"] == "error")
+        raise AppStoreConnectError(f"Build asset verification failed before upload: {messages}")
+    return check
 
 
 def derive_key_id_from_path(path: str | Path | None) -> str | None:
@@ -3616,6 +3808,8 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
         )
     ensure_app_store_version_format(version_string)
     ensure_version_format(build_number, "Build number")
+    ext = file_path.suffix.lower()
+    binary_asset_check = verify_upload_binary_assets_if_needed(args, file_path, ext)
     if not args.yes:
         expected_ext = PLATFORM_BUILD_EXTENSIONS.get(args.platform)
         return {
@@ -3629,12 +3823,12 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
             "buildNumber": build_number,
             "platform": args.platform,
             "versionPlan": version_plan,
+            "binaryAssetCheck": binary_asset_check,
         }
     if not file_path.exists():
         raise AppStoreConnectError(f"Build file not found: {file_path}")
     if client is None:
         raise AppStoreConnectError("An App Store Connect client is required when uploading builds.")
-    ext = file_path.suffix.lower()
     expected_ext = PLATFORM_BUILD_EXTENSIONS.get(args.platform)
     if expected_ext and ext != expected_ext:
         raise AppStoreConnectError(f"{args.platform} uploads should use {expected_ext} files, got {ext or 'no extension'}.")
@@ -3694,7 +3888,13 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
                 break
             time.sleep(20)
             final = client.get(f"/v1/buildUploads/{upload_id}", {"include": "build,buildUploadFiles"})
-    return {"dryRun": False, "buildUploadId": upload_id, "buildUploadFileId": file_id, "response": final}
+    return {
+        "dryRun": False,
+        "buildUploadId": upload_id,
+        "buildUploadFileId": file_id,
+        "binaryAssetCheck": binary_asset_check,
+        "response": final,
+    }
 
 
 def transporter_command(args: argparse.Namespace, credentials: Credentials) -> list[str]:
@@ -3720,6 +3920,8 @@ def transporter_command(args: argparse.Namespace, credentials: Credentials) -> l
 
 
 def run_transporter(args: argparse.Namespace) -> dict[str, Any]:
+    file_path = Path(args.file).expanduser()
+    binary_asset_check = verify_upload_binary_assets_if_needed(args, file_path, file_path.suffix.lower())
     if not args.yes:
         transporter = args.transporter or shutil.which("iTMSTransporter")
         if transporter:
@@ -3731,12 +3933,13 @@ def run_transporter(args: argparse.Namespace) -> dict[str, Any]:
         return {
             "dryRun": True,
             "command": command + ["-jwt", "<jwt>", "-v", args.verbosity, "-assetFile", args.file],
+            "binaryAssetCheck": binary_asset_check,
         }
     credentials = Credentials.from_env()
     command = transporter_command(args, credentials)
     redacted = ["<jwt>" if item.startswith("eyJ") else item for item in command]
     proc = subprocess.run(command, check=False)
-    return {"dryRun": False, "returnCode": proc.returncode, "command": redacted}
+    return {"dryRun": False, "returnCode": proc.returncode, "command": redacted, "binaryAssetCheck": binary_asset_check}
 
 
 def doctor() -> dict[str, Any]:
@@ -4077,6 +4280,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional directory for downloading rendered App Store Connect screenshots before pixel checks.",
     )
 
+    binary_assets = sub.add_parser(
+        "verify-build-assets",
+        help="Inspect an .ipa, .xcarchive, or .app for required compiled asset catalog output before upload.",
+    )
+    binary_assets.add_argument("--path", required=True, help="Path to an .ipa, .xcarchive, .app, or directory.")
+    binary_assets.add_argument("--expect-bundle-id", help="Expected CFBundleIdentifier.")
+    binary_assets.add_argument(
+        "--expect-platform",
+        default="iPhoneOS",
+        help="Expected CFBundleSupportedPlatforms entry. Use an empty string to skip.",
+    )
+    binary_assets.add_argument(
+        "--allow-missing-assets-car",
+        action="store_true",
+        help="Do not fail when Assets.car is missing. Use only for unusual non-iOS diagnostics.",
+    )
+
     apps = sub.add_parser("list-apps", help="List App Store Connect apps visible to the API key.")
     apps.add_argument("--bundle-id")
     apps.add_argument("--name")
@@ -4096,6 +4316,13 @@ def build_parser() -> argparse.ArgumentParser:
     upload.add_argument("--version-string")
     upload.add_argument("--build-number")
     upload.add_argument("--platform", default="IOS")
+    upload.add_argument("--expect-bundle-id", help="Expected CFBundleIdentifier for iOS IPA preflight.")
+    upload.add_argument("--expect-platform", default="iPhoneOS", help="Expected iOS platform for IPA preflight.")
+    upload.add_argument(
+        "--skip-binary-asset-check",
+        action="store_true",
+        help="Skip the iOS IPA Assets.car preflight. Use only when a separate binary validation has already passed.",
+    )
     upload.add_argument("--auto-version", action="store_true", help="Infer missing version/build values from the project.")
     add_versioning_arguments(upload)
     upload.add_argument("--wait", type=int, default=0, help="Seconds to poll for processing state.")
@@ -4103,6 +4330,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     transporter = sub.add_parser("upload-build-transporter", help="Upload an .ipa or .pkg with Transporter.")
     transporter.add_argument("--file", required=True)
+    transporter.add_argument("--platform", default="IOS")
+    transporter.add_argument("--expect-bundle-id", help="Expected CFBundleIdentifier for iOS IPA preflight.")
+    transporter.add_argument("--expect-platform", default="iPhoneOS", help="Expected iOS platform for IPA preflight.")
+    transporter.add_argument(
+        "--skip-binary-asset-check",
+        action="store_true",
+        help="Skip the iOS IPA Assets.car preflight. Use only when a separate binary validation has already passed.",
+    )
     transporter.add_argument("--transporter", help="Path to iTMSTransporter.")
     transporter.add_argument("--verbosity", default="eXtreme")
     transporter.add_argument("--yes", action="store_true", help="Run Transporter. Without this flag, prints a dry run.")
@@ -4174,6 +4409,15 @@ def main(argv: list[str] | None = None) -> int:
                     load_json(args.config),
                     AppStoreConnectClient(),
                     Path(args.download_dir).expanduser() if args.download_dir else None,
+                )
+            )
+        elif args.command == "verify-build-assets":
+            print_json(
+                verify_build_assets(
+                    args.path,
+                    expect_bundle_id=args.expect_bundle_id,
+                    expect_platform=args.expect_platform or None,
+                    require_assets_car=not args.allow_missing_assets_car,
                 )
             )
         elif args.command == "list-apps":

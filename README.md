@@ -30,6 +30,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
 - Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
+- Verify iOS `.xcarchive` and `.ipa` artifacts contain the compiled asset catalog (`Assets.car`) before upload.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with platform validation, Transporter and Xcode `destination=upload` fallbacks, plus optional automatic versioning.
 - Prepare native macOS platform versions with `MAC_OS`, `.pkg` artifacts, and `APP_DESKTOP` screenshots.
 - Validate iOS/macOS universal-purchase setup, shared Apple subscription products, and RevenueCat same-project entitlement/offering/package mapping so platform apps stay independent but user-facing pricing and access remain consistent.
@@ -45,6 +46,7 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 
 - [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
 - [Generating tokens for API requests](https://developer.apple.com/documentation/appstoreconnectapi/generating_tokens_for_api_requests)
+- [Managing assets with asset catalogs](https://developer.apple.com/documentation/xcode/managing-assets-with-asset-catalogs)
 - [Uploading assets to App Store Connect](https://developer.apple.com/documentation/appstoreconnectapi/uploading_assets_to_app_store_connect)
 - [Build uploads](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-builduploads)
 - [Upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
@@ -226,6 +228,31 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py apply-version \
   --yes
 ```
 
+Before uploading an iOS binary, archive with an explicit generic iOS destination and verify the compiled asset catalog is inside the final app. Do not rely on Xcode's default destination when multiple destinations are available.
+
+```bash
+xcodebuild -project MyApp.xcodeproj \
+  -scheme MyApp \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath build/MyApp.xcarchive \
+  archive
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/MyApp.xcarchive \
+  --expect-bundle-id com.example.product \
+  --expect-platform iPhoneOS
+```
+
+After exporting the `.ipa`, run the same check on the file that will be uploaded. A missing `Assets.car`, bundle mismatch, or wrong platform is a release blocker because it can produce App Store processing failures such as `ITMS-90546: Missing asset catalog`.
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/MyApp.ipa \
+  --expect-bundle-id com.example.product \
+  --expect-platform iPhoneOS
+```
+
 Upload a build with the API:
 
 ```bash
@@ -234,6 +261,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --file build/App.ipa \
   --version-string 1.0.0 \
   --build-number 42 \
+  --expect-bundle-id com.example.product \
   --wait 1800 \
   --yes
 ```
@@ -260,9 +288,12 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --auto-version \
   --project-dir /path/to/MyApp \
   --iteration-count 7 \
+  --expect-bundle-id com.example.product \
   --wait 1800 \
   --yes
 ```
+
+`upload-build-api` and `upload-build-transporter` automatically run the iOS `.ipa` asset-catalog preflight unless `--skip-binary-asset-check` is deliberately supplied after a separate verification has already passed.
 
 ## Versioning Behavior
 

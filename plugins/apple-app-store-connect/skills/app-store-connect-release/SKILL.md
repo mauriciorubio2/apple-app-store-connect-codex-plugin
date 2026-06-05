@@ -245,6 +245,33 @@ For platform uploads:
 
 When App Review rejects artwork or bundled assets, increment the build number, archive a new binary, upload the new build, and update `version.buildId`. Metadata-only changes are not enough for icon, asset catalog, bundled screenshot, or binary content changes.
 
+For iOS, iPadOS, tvOS, and visionOS archive work, pass an explicit generic device destination instead of relying on Xcode's default destination. If Xcode defaults to a Mac "Designed for iPad/iPhone" destination, the upload workflow can become ambiguous. For iOS, use:
+
+```bash
+xcodebuild -project App.xcodeproj \
+  -scheme App \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath build/App.xcarchive \
+  archive
+```
+
+Before uploading an iOS `.ipa`, verify the binary artifact itself has the expected app bundle, platform, and compiled asset catalog:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/App.xcarchive \
+  --expect-bundle-id com.example.product \
+  --expect-platform iPhoneOS
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/App.ipa \
+  --expect-bundle-id com.example.product \
+  --expect-platform iPhoneOS
+```
+
+Treat missing `Assets.car`, a bundle mismatch, or an unexpected platform as a hard upload blocker. Missing `Assets.car` can trigger `ITMS-90546: Missing asset catalog` after delivery.
+
 Use this upload fallback order:
 
 1. Try `upload-build-api` after a dry run and explicit confirmation.
@@ -301,7 +328,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --app-id 1234567890 \
   --file build/App.ipa \
   --version-string 1.0.0 \
-  --build-number 42
+  --build-number 42 \
+  --expect-bundle-id com.example.product
 ```
 
 Automatic-version upload dry run:
@@ -311,7 +339,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --app-id 1234567890 \
   --file build/App.ipa \
   --auto-version \
-  --project-dir .
+  --project-dir . \
+  --expect-bundle-id com.example.product
 ```
 
 Confirmed API upload:
@@ -322,6 +351,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --file build/App.ipa \
   --version-string 1.0.0 \
   --build-number 42 \
+  --expect-bundle-id com.example.product \
   --wait 1800 \
   --yes
 ```
@@ -330,7 +360,8 @@ Transporter fallback:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-transporter \
-  --file build/App.ipa
+  --file build/App.ipa \
+  --expect-bundle-id com.example.product
 ```
 
 Use the build relationship in `version.buildId` after Apple finishes processing the build.

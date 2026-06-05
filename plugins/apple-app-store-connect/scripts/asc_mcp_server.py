@@ -202,6 +202,9 @@ TOOLS = [
                 },
                 "iterationCount": {"type": "integer"},
                 "platform": {"type": "string", "default": "IOS"},
+                "expectBundleId": {"type": "string"},
+                "expectPlatform": {"type": "string", "default": "iPhoneOS"},
+                "skipBinaryAssetCheck": {"type": "boolean", "default": False},
                 "waitSeconds": {"type": "integer", "default": 0},
                 "confirm": {"type": "boolean", "default": False},
             },
@@ -230,6 +233,20 @@ TOOLS = [
                 },
             },
             "required": ["configPath"],
+        },
+    },
+    {
+        "name": "asc_verify_build_assets",
+        "description": "Inspect an .ipa, .xcarchive, or .app for compiled asset catalog output, bundle ID, and platform before upload.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "expectBundleId": {"type": "string"},
+                "expectPlatform": {"type": "string", "default": "iPhoneOS"},
+                "allowMissingAssetsCar": {"type": "boolean", "default": False},
+            },
+            "required": ["path"],
         },
     },
 ]
@@ -424,6 +441,12 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             command.append("--auto-version")
         if arguments.get("iterationCount") is not None:
             command += ["--iteration-count", str(arguments["iterationCount"])]
+        if arguments.get("expectBundleId"):
+            command += ["--expect-bundle-id", arguments["expectBundleId"]]
+        if arguments.get("expectPlatform"):
+            command += ["--expect-platform", arguments["expectPlatform"]]
+        if arguments.get("skipBinaryAssetCheck"):
+            command.append("--skip-binary-asset-check")
         if arguments.get("confirm"):
             command.append("--yes")
         text = run_command(command)
@@ -440,6 +463,15 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if arguments.get("downloadDir"):
             command += ["--download-dir", arguments["downloadDir"]]
         text = run_command(command)
+    elif name == "asc_verify_build_assets":
+        command = ["python3", str(CLI), "verify-build-assets", "--path", arguments["path"]]
+        if arguments.get("expectBundleId"):
+            command += ["--expect-bundle-id", arguments["expectBundleId"]]
+        if arguments.get("expectPlatform"):
+            command += ["--expect-platform", arguments["expectPlatform"]]
+        if arguments.get("allowMissingAssetsCar"):
+            command.append("--allow-missing-assets-car")
+        text = run_command(command)
     else:
         raise RuntimeError(f"Unknown tool: {name}")
     return {"content": [{"type": "text", "text": text}]}
@@ -453,7 +485,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.11.0"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.0"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

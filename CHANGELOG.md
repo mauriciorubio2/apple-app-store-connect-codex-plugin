@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.0] - 2026-06-05
+
+- Added `verify-build-assets` to inspect `.ipa`, `.xcarchive`, and `.app` artifacts for `Assets.car`, bundle ID, and platform before upload.
+- Added automatic iOS `.ipa` asset-catalog preflight to API and Transporter upload commands so missing compiled asset catalogs are blocked locally instead of reaching App Store processing.
+- Updated release guidance to archive iOS builds with `generic/platform=iOS`, verify the archive and exported IPA, and treat `ITMS-90546`-style missing asset catalog findings as hard upload blockers.
+
 ## [1.13.1] - 2026-06-05
 
 - Added macOS platform release guardrails for `.pkg` uploads, `APP_DESKTOP` screenshots, and explicit `MAC_OS` platform handling.

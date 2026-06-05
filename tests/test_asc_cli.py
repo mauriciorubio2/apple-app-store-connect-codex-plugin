@@ -6,6 +6,7 @@ import plistlib
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 
@@ -242,6 +243,57 @@ class AscCliValidationTests(unittest.TestCase):
                 cli.local_screenshot_pixel_summary(path),
             )
         self.assertTrue(any(issue["severity"] == "error" for issue in issues))
+
+    def test_verify_build_assets_accepts_ios_archive_with_assets_car(self):
+        cli = load_cli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app = root / "Example.xcarchive" / "Products" / "Applications" / "Example.app"
+            app.mkdir(parents=True)
+            with (app / "Info.plist").open("wb") as file:
+                plistlib.dump(
+                    {
+                        "CFBundleIdentifier": "com.example.product",
+                        "CFBundleShortVersionString": "1.0.0",
+                        "CFBundleVersion": "42",
+                        "CFBundleSupportedPlatforms": ["iPhoneOS"],
+                    },
+                    file,
+                )
+            (app / "Assets.car").write_bytes(b"compiled assets")
+            result = cli.verify_build_assets(
+                root / "Example.xcarchive",
+                expect_bundle_id="com.example.product",
+                expect_platform="iPhoneOS",
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["appCount"], 1)
+        self.assertTrue(result["apps"][0]["assetsCarPresent"])
+
+    def test_verify_build_assets_rejects_ios_ipa_missing_assets_car(self):
+        cli = load_cli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ipa = root / "Example.ipa"
+            with zipfile.ZipFile(ipa, "w") as archive:
+                archive.writestr(
+                    "Payload/Example.app/Info.plist",
+                    plistlib.dumps(
+                        {
+                            "CFBundleIdentifier": "com.example.product",
+                            "CFBundleShortVersionString": "1.0.0",
+                            "CFBundleVersion": "42",
+                            "CFBundleSupportedPlatforms": ["iPhoneOS"],
+                        }
+                    ),
+                )
+            result = cli.verify_build_assets(
+                ipa,
+                expect_bundle_id="com.example.product",
+                expect_platform="iPhoneOS",
+            )
+        self.assertFalse(result["ok"])
+        self.assertIn("Assets.car", result["issues"][0]["field"])
 
     def test_ip_review_warns_when_independent_app_disclaimers_are_missing(self):
         cli = load_cli()
