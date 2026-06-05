@@ -65,6 +65,8 @@ TEXT_LIMITS = {
     "description": (0, 4000),
     "whatsNew": (0, 4000),
 }
+WHATS_NEW_BULLET_RE = re.compile(r"^\s*[-*•]\s*")
+WHATS_NEW_SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
 
 SUBSCRIPTION_DESCRIPTION_MARKERS = {
     "section": "subscription information",
@@ -673,6 +675,27 @@ def validate_keywords(value: str | None, issues: list[dict[str, str]]) -> None:
                 "message": "Avoid generic category words such as app or apps.",
             }
         )
+
+
+def whats_new_uses_bullet_lines(value: str | None) -> bool:
+    lines = [line for line in str(value or "").splitlines() if line.strip()]
+    return bool(lines) and all(WHATS_NEW_BULLET_RE.match(line) for line in lines)
+
+
+def format_whats_new_bullets(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return ""
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) > 1 or whats_new_uses_bullet_lines(text):
+        items = [WHATS_NEW_BULLET_RE.sub("", line).strip() for line in lines]
+    else:
+        items = [item.strip() for item in WHATS_NEW_SENTENCE_BOUNDARY_RE.split(text) if item.strip()]
+
+    return "\n".join(f"-{item}" for item in items if item)
 
 
 def validate_subscription_description(
@@ -2950,15 +2973,26 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
 
     for loc in version_localizations:
         prefix = f"versionLocalizations[{loc.get('locale', 'unknown')}]"
-        for field in ("description", "promotionalText", "whatsNew"):
+        for field in ("description", "promotionalText"):
             add_length_issue(issues, prefix + "." + field, loc.get(field), *TEXT_LIMITS[field])
+        whats_new = loc.get("whatsNew")
+        formatted_whats_new = format_whats_new_bullets(whats_new)
+        add_length_issue(issues, prefix + ".whatsNew", formatted_whats_new, *TEXT_LIMITS["whatsNew"])
         validate_keywords(loc.get("keywords"), issues)
-        if not str(loc.get("whatsNew") or "").strip():
+        if not str(whats_new or "").strip():
             issues.append(
                 {
                     "severity": "warning",
                     "field": prefix + ".whatsNew",
                     "message": "Add user-visible What's New copy so App Store version history/changelog is not blank.",
+                }
+            )
+        elif not whats_new_uses_bullet_lines(whats_new):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": prefix + ".whatsNew",
+                    "message": "Format What's New/version history as hyphen-prefixed bullet lines, one user-visible change per line.",
                 }
             )
         if not loc.get("supportUrl"):
@@ -3268,19 +3302,20 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
             }
         )
     for loc in as_list(config.get("versionLocalizations")):
-        actions.append(
-            {
-                "action": "PATCH" if loc.get("id") else "POST",
-                "resource": "appStoreVersionLocalizations",
-                "locale": loc.get("locale"),
-                "fields": sorted(
-                    clean_attributes(
-                        loc,
-                        {"description", "keywords", "marketingUrl", "promotionalText", "supportUrl", "whatsNew"},
-                    )
-                ),
-            }
-        )
+        action = {
+            "action": "PATCH" if loc.get("id") else "POST",
+            "resource": "appStoreVersionLocalizations",
+            "locale": loc.get("locale"),
+            "fields": sorted(
+                clean_attributes(
+                    loc,
+                    {"description", "keywords", "marketingUrl", "promotionalText", "supportUrl", "whatsNew"},
+                )
+            ),
+        }
+        if str(loc.get("whatsNew") or "").strip():
+            action["whatsNewFormat"] = "hyphenBullets"
+        actions.append(action)
     if config.get("reviewDetails"):
         actions.append(
             {
@@ -3442,8 +3477,11 @@ def apply_submission(
         results.append({"resource": "appStoreVersions", "id": response.get("data", {}).get("id")})
 
     for loc in as_list(config.get("versionLocalizations")):
+        prepared_loc = dict(loc)
+        if "whatsNew" in prepared_loc:
+            prepared_loc["whatsNew"] = format_whats_new_bullets(prepared_loc.get("whatsNew"))
         attrs = clean_attributes(
-            loc,
+            prepared_loc,
             {"description", "keywords", "marketingUrl", "promotionalText", "supportUrl", "whatsNew"},
         )
         if not attrs:

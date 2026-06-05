@@ -156,7 +156,8 @@
         "keywords": "100 characters maximum, comma-separated, no spaces after commas",
         "promotionalText": "170 characters maximum",
         "whatsNew": "4000 characters maximum"
-      }
+      },
+      "notes": "What's New/version history should use hyphen-prefixed bullet lines, one user-visible change per line. Codex normalizes flat paragraphs before applying version localizations."
     },
     {
       "group": "Screenshots and app previews",

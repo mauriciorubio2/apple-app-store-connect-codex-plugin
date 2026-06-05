@@ -14,6 +14,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 ## What It Can Do
 
 - Draft ASO and Apple Ads-aware app name, subtitle, description, keywords, promotional text, and what's-new copy.
+- Normalize App Store What's New/version-history copy into hyphen-prefixed bullet lines before applying version localizations.
 - Run a release preflight that verifies App Store Connect API access and requires a RevenueCat MCP probe before subscription automation begins.
 - Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
 - Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
@@ -35,7 +36,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Prepare native macOS platform versions with `MAC_OS`, `.pkg` artifacts, and `APP_DESKTOP` screenshots.
 - Validate iOS/macOS universal-purchase setup, shared Apple subscription products, and RevenueCat same-project entitlement/offering/package mapping so platform apps stay independent but user-facing pricing and access remain consistent.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
-- Warn when version localizations are missing `whatsNew` copy so App Store version history/changelog text is not forgotten.
+- Warn when version localizations are missing or use flat `whatsNew` copy so App Store version history/changelog text is not forgotten.
 - Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
 - Prepare IP-sensitive releases and resubmissions with a generic third-party IP checklist, optional `ipReview` validation warnings, no-affiliation disclaimer guidance, and new-binary reminders for asset changes.
 - Create dry-run plans so a human can approve exactly what will change.

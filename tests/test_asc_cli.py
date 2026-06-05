@@ -25,6 +25,20 @@ def load_cli():
     return module
 
 
+class RecordingClient:
+    def __init__(self):
+        self.patch_calls = []
+        self.post_calls = []
+
+    def patch(self, path, body):
+        self.patch_calls.append((path, body))
+        return {"data": {"id": body.get("data", {}).get("id", "patched-id")}}
+
+    def post(self, path, body):
+        self.post_calls.append((path, body))
+        return {"data": {"id": "posted-id"}}
+
+
 class AscCliValidationTests(unittest.TestCase):
     def test_template_validates_with_expected_warnings_only(self):
         cli = load_cli()
@@ -82,6 +96,89 @@ class AscCliValidationTests(unittest.TestCase):
                 and issue["severity"] == "warning"
                 for issue in result["issues"]
             )
+        )
+
+    def test_whats_new_formatter_splits_flat_version_history_into_bullets(self):
+        cli = load_cli()
+        flat = (
+            "Confirmed 2026 squads are now loaded with 26-player team rosters, DOBs, clubs, positions, "
+            "and refreshed original generated player portrait-card artwork. "
+            "Added a Past tab for finished matches with scores, stats, replay links when available, "
+            "and an Entertaining to Watch rating. "
+            "App Store screenshots and metadata were refreshed for clearer conversion-focused messaging "
+            "while keeping independent, generic soccer artwork."
+        )
+        expected = (
+            "-Confirmed 2026 squads are now loaded with 26-player team rosters, DOBs, clubs, positions, "
+            "and refreshed original generated player portrait-card artwork.\n"
+            "-Added a Past tab for finished matches with scores, stats, replay links when available, "
+            "and an Entertaining to Watch rating.\n"
+            "-App Store screenshots and metadata were refreshed for clearer conversion-focused messaging "
+            "while keeping independent, generic soccer artwork."
+        )
+        self.assertEqual(cli.format_whats_new_bullets(flat), expected)
+
+    def test_whats_new_formatter_normalizes_existing_bullet_markers(self):
+        cli = load_cli()
+        source = "- Confirmed squads.\n• Added match history.\n* Refreshed screenshots."
+        self.assertTrue(cli.whats_new_uses_bullet_lines(source))
+        self.assertEqual(
+            cli.format_whats_new_bullets(source),
+            "-Confirmed squads.\n-Added match history.\n-Refreshed screenshots.",
+        )
+
+    def test_flat_whats_new_warns_for_bullet_version_history_format(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "appInfoLocalizations": [
+                {
+                    "locale": "en-US",
+                    "name": "Example Product",
+                    "privacyPolicyUrl": "https://example.com/privacy",
+                }
+            ],
+            "versionLocalizations": [
+                {
+                    "locale": "en-US",
+                    "description": "A useful app with clear user value.",
+                    "keywords": "planner,focus",
+                    "supportUrl": "https://example.com/support",
+                    "whatsNew": "Added smarter planning. Refreshed screenshots.",
+                }
+            ],
+        }
+        result = cli.validate_submission_config(config)
+        self.assertTrue(result["ok"])
+        self.assertTrue(
+            any(
+                issue["field"] == "versionLocalizations[en-US].whatsNew"
+                and issue["severity"] == "warning"
+                and "hyphen-prefixed bullet lines" in issue["message"]
+                for issue in result["issues"]
+            )
+        )
+
+    def test_apply_submission_sends_bulleted_whats_new(self):
+        cli = load_cli()
+        client = RecordingClient()
+        config = {
+            "versionLocalizations": [
+                {
+                    "id": "loc-1",
+                    "locale": "en-US",
+                    "supportUrl": "https://example.com/support",
+                    "whatsNew": "Added smarter planning. Refreshed screenshots.",
+                }
+            ]
+        }
+        result = cli.apply_submission(config, client, yes=True)
+        self.assertFalse(result["dryRun"])
+        self.assertEqual(len(client.patch_calls), 1)
+        _, body = client.patch_calls[0]
+        self.assertEqual(
+            body["data"]["attributes"]["whatsNew"],
+            "-Added smarter planning.\n-Refreshed screenshots.",
         )
 
     def test_subscription_description_requires_terms_link(self):
