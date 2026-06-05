@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [1.13.1] - 2026-06-05
+
+- Added macOS platform release guardrails for `.pkg` uploads, `APP_DESKTOP` screenshots, and explicit `MAC_OS` platform handling.
+- Added iOS/macOS universal-purchase validation for shared Apple app records, bundle IDs, subscription product catalogs, and separate-platform product mappings.
+- Added RevenueCat cross-platform checks for same project, shared entitlement, shared offering/paywall, equivalent packages, and public SDK key documentation.
+- Added `preserveCurrentPrice` and `preserveCurrentIntroductoryOffer` no-op handling so existing iOS subscription prices/trials can be intentionally reused for macOS releases.
+- Updated release templates, field map, skill guidance, and README for macOS uploads and consistent iOS/macOS subscription/paywall setup.
+
 ## [1.13.0] - 2026-06-05
 
 - Added public App Store screenshot copy validation that blocks price, free, trial, discount, savings, and no-payment wording before rendered screenshots are produced.

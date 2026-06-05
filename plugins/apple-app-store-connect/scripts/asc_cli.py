@@ -149,6 +149,27 @@ SUBSCRIPTION_REVIEW_SCREENSHOT_MAX_DARK_PIXEL_RATIO = 0.90
 
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
+PLATFORM_BUILD_EXTENSIONS = {
+    "IOS": ".ipa",
+    "TV_OS": ".ipa",
+    "VISION_OS": ".ipa",
+    "MAC_OS": ".pkg",
+}
+PLATFORM_SCREENSHOT_DISPLAY_TYPES = {
+    "IOS": {"APP_IPHONE_67", "APP_IPHONE_61", "APP_IPHONE_65", "APP_IPAD_PRO_3GEN_129", "APP_IPAD_PRO_3GEN_11"},
+    "MAC_OS": {"APP_DESKTOP"},
+    "TV_OS": {"APP_APPLE_TV"},
+    "VISION_OS": {"APP_APPLE_VISION_PRO"},
+}
+APPLE_PLATFORM_PRODUCT_SOURCE_LINKS = [
+    "https://developer.apple.com/support/universal-purchase/",
+    "https://developer.apple.com/help/app-store-connect/configure-in-app-purchase-settings/overview-for-configuring-in-app-purchases/",
+    "https://developer.apple.com/help/app-store-connect/reference/in-app-purchase-information",
+    "https://www.revenuecat.com/docs/getting-started/installation/macos",
+    "https://www.revenuecat.com/docs/getting-started/entitlements",
+    "https://www.revenuecat.com/docs/offerings/overview",
+    "https://www.revenuecat.com/docs/projects/authentication",
+]
 AUTH_KEY_RE = re.compile(r"^AuthKey_([A-Za-z0-9]+)\.p8$")
 VERSION_RE = re.compile(r"^\d+(?:\.\d+){0,2}$")
 FULL_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -2109,6 +2130,260 @@ def validate_revenuecat_integration(config: dict[str, Any], issues: list[dict[st
         )
 
 
+def subscription_product_identifiers(config: dict[str, Any]) -> set[str]:
+    product_ids: set[str] = set()
+    for entry in subscription_pricing_entries(config):
+        if entry.get("productId"):
+            product_ids.add(str(entry["productId"]))
+    for block in subscription_review_screenshot_blocks(config):
+        if block.get("productId"):
+            product_ids.add(str(block["productId"]))
+        for product in as_list(block.get("products")):
+            if isinstance(product, dict) and product.get("productId"):
+                product_ids.add(str(product["productId"]))
+    return product_ids
+
+
+def validate_platform_release_strategy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    app = config.get("app") or {}
+    platform = str(app.get("platform") or "IOS").upper()
+    build = config.get("build") or {}
+    build_path = build.get("packagePath") or build.get("file") or build.get("path")
+    expected_ext = PLATFORM_BUILD_EXTENSIONS.get(platform)
+    if build_path and expected_ext:
+        suffix = Path(str(build_path)).suffix.lower()
+        if suffix and suffix != expected_ext:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "build.packagePath",
+                    "message": f"{platform} uploads should use {expected_ext} build artifacts.",
+                }
+            )
+
+    allowed_display_types = PLATFORM_SCREENSHOT_DISPLAY_TYPES.get(platform)
+    for index, group in enumerate(as_list(config.get("screenshots"))):
+        display_type = group.get("displayType")
+        if not display_type or not allowed_display_types:
+            continue
+        if display_type not in allowed_display_types:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": f"screenshots[{index}].displayType",
+                    "message": (
+                        f"{platform} screenshot uploads normally use "
+                        f"{', '.join(sorted(allowed_display_types))}; found {display_type}."
+                    ),
+                }
+            )
+
+
+def validate_cross_platform_revenuecat_strategy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    app = config.get("app") or {}
+    platform = str(app.get("platform") or "IOS").upper()
+    subscriptions = as_list(config.get("subscriptions"))
+    has_subscription_strategy = bool(subscriptions or config.get("subscriptionPricing"))
+    cross_platform = config.get("crossPlatformRelease") or config.get("universalPurchase") or {}
+    revenuecat = config.get("revenueCatIntegration") or {}
+    rc_cross_platform = revenuecat.get("crossPlatform") or {}
+    cross_platform_enabled = bool(
+        cross_platform.get("enabled")
+        or cross_platform.get("distributionModel")
+        or rc_cross_platform.get("enabled")
+    )
+
+    if platform == "MAC_OS" and has_subscription_strategy and not cross_platform_enabled:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "crossPlatformRelease",
+                "message": (
+                    "For a macOS companion to an iOS subscription app, declare whether this is an "
+                    "Apple universal purchase using the same app record/product catalog or a separate "
+                    "Mac app with mapped products."
+                ),
+            }
+        )
+        return
+    if not cross_platform_enabled:
+        return
+
+    apple_platforms = {str(value).upper() for value in as_list(cross_platform.get("applePlatforms"))}
+    if not apple_platforms and platform:
+        apple_platforms.add(platform)
+    includes_macos = "MAC_OS" in apple_platforms or platform == "MAC_OS"
+    distribution = normalized_status(
+        cross_platform.get("distributionModel")
+        or cross_platform.get("appleDistributionModel")
+        or cross_platform.get("strategy")
+    )
+    shared_app_record = cross_platform.get("sharedAppleAppRecord")
+    same_bundle_id = cross_platform.get("sameBundleIdForUniversalPurchase")
+    same_products = cross_platform.get("sameSubscriptionGroupAndProductIds")
+    separate_mapping = bool(
+        cross_platform.get("separatePlatformProductIds")
+        or cross_platform.get("platformProductMapping")
+        or cross_platform.get("productMapping")
+    )
+
+    if includes_macos and distribution in {"apple_universal_purchase", "universal_purchase"}:
+        if shared_app_record is not True:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "crossPlatformRelease.sharedAppleAppRecord",
+                    "message": (
+                        "Apple universal purchase platform versions should use the same App Store "
+                        "Connect app record, Apple ID, SKU, and bundle ID."
+                    ),
+                }
+            )
+        if same_bundle_id is not True:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "crossPlatformRelease.sameBundleIdForUniversalPurchase",
+                    "message": "Record that the macOS platform uses the same bundle ID when shipping as an Apple universal purchase.",
+                }
+            )
+        if has_subscription_strategy and same_products is not True and not separate_mapping:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "crossPlatformRelease.sameSubscriptionGroupAndProductIds",
+                    "message": (
+                        "For the same Apple app record, keep subscriptions in the shared product catalog. "
+                        "If the Mac app is a separate app record, provide a platform product mapping instead."
+                    ),
+                }
+            )
+    elif includes_macos and has_subscription_strategy and not separate_mapping and same_products is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "crossPlatformRelease.platformProductMapping",
+                "message": (
+                    "Separate iOS and macOS app records need platform-specific Apple product IDs mapped "
+                    "to equivalent RevenueCat packages and the same entitlement."
+                ),
+            }
+        )
+
+    product_ids = subscription_product_identifiers(config)
+    if has_subscription_strategy and not product_ids:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionPricing.products",
+                "message": "Record the Apple subscription product IDs so cross-platform RevenueCat packages can be verified.",
+            }
+        )
+
+    if has_subscription_strategy and (not revenuecat or revenuecat.get("enabled") is False):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.enabled",
+                "message": (
+                    "Subscription apps using RevenueCat coordination should declare the target RevenueCat "
+                    "project, entitlement, offering, and package mapping before release automation."
+                ),
+            }
+        )
+        return
+
+    if not revenuecat:
+        return
+    if rc_cross_platform.get("sameProject") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.crossPlatform.sameProject",
+                "message": "Use one RevenueCat project for the related iOS/macOS app experience so entitlements are shared.",
+            }
+        )
+    if has_subscription_strategy and rc_cross_platform.get("sharedEntitlement") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.crossPlatform.sharedEntitlement",
+                "message": "Use the same RevenueCat entitlement, such as pro, for equivalent iOS and macOS premium access.",
+            }
+        )
+    if has_subscription_strategy and rc_cross_platform.get("sharedOffering") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.crossPlatform.sharedOffering",
+                "message": "Use the same RevenueCat offering/paywall identifier when the end-user pricing and paywall should stay in sync.",
+            }
+        )
+    if has_subscription_strategy and rc_cross_platform.get("packagesRepresentEquivalentProducts") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.crossPlatform.packagesRepresentEquivalentProducts",
+                "message": "RevenueCat packages should group equivalent products for each platform or app record.",
+            }
+        )
+
+    app_entries = [entry for entry in as_list(revenuecat.get("apps")) if isinstance(entry, dict)]
+    if app_entries:
+        for index, entry in enumerate(app_entries):
+            field = f"revenueCatIntegration.apps[{index}]"
+            if not entry.get("platform"):
+                issues.append({"severity": "warning", "field": field + ".platform", "message": "Record the RevenueCat app platform."})
+            if not entry.get("store"):
+                issues.append({"severity": "warning", "field": field + ".store", "message": "Record the RevenueCat store/provider, for example app_store."})
+            if not entry.get("bundleId"):
+                issues.append({"severity": "warning", "field": field + ".bundleId", "message": "Record the bundle ID linked to this RevenueCat app."})
+            if not (entry.get("appId") or entry.get("publicApiKey")):
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "field": field,
+                        "message": "Record the RevenueCat app ID or public SDK key; never place a secret API key in the app.",
+                    }
+                )
+    elif has_subscription_strategy:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.apps",
+                "message": (
+                    "Record the RevenueCat app/public SDK key used by the Apple build. For universal-purchase "
+                    "Mac apps, the Apple app key may be shared; for separate app records, add a Mac app entry in the same project."
+                ),
+            }
+        )
+
+    if includes_macos and has_subscription_strategy:
+        mac_uses_apple_key = rc_cross_platform.get("universalPurchaseMacUsesApplePublicKey")
+        has_macos_app_entry = any(str(entry.get("platform") or "").upper() == "MAC_OS" for entry in app_entries)
+        if mac_uses_apple_key is not True and not has_macos_app_entry:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "revenueCatIntegration.crossPlatform.universalPurchaseMacUsesApplePublicKey",
+                    "message": (
+                        "RevenueCat macOS support is based on Apple universal purchases by default. "
+                        "Set this true when the Mac build uses the same Apple public SDK key, or add a separate Mac app entry if support enabled it."
+                    ),
+                }
+            )
+
+    source_links = as_list(cross_platform.get("bestPracticeSources")) + as_list(rc_cross_platform.get("bestPracticeSources"))
+    if source_links and not all(str(link) in source_links for link in APPLE_PLATFORM_PRODUCT_SOURCE_LINKS[-4:]):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "crossPlatformRelease.bestPracticeSources",
+                "message": "Include current RevenueCat entitlements, offerings, API key, and macOS installation docs in the cross-platform release source list.",
+            }
+        )
+
+
 def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
     policy = config.get("reviewPromptPolicy") or {}
     if not policy:
@@ -2306,6 +2581,8 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     validate_subscription_pricing_strategy(config, issues)
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)
+    validate_platform_release_strategy(config, issues)
+    validate_cross_platform_revenuecat_strategy(config, issues)
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
@@ -2329,6 +2606,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
         ],
         "plannedPricingActions": [
             {
+                "action": "NO_OP" if entry.get("preserveCurrentPrice") else "POST",
                 "resource": "subscriptionPrices",
                 "subscriptionId": entry.get("subscriptionId") or entry.get("id"),
                 "productId": entry.get("productId"),
@@ -2342,6 +2620,9 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
         ],
         "plannedIntroOfferActions": [
             {
+                "action": "NO_OP"
+                if (offer.get("preserveCurrentOffer") or offer.get("preserveCurrentIntroductoryOffer"))
+                else "POST",
                 "resource": "subscriptionIntroductoryOffers",
                 "subscriptionId": offer.get("subscriptionId") or offer.get("id"),
                 "productId": offer.get("productId"),
@@ -2349,6 +2630,8 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
                 "offerMode": offer.get("offerMode", "FREE_TRIAL"),
                 "duration": offer.get("duration", DEFAULT_SUBSCRIPTION_TRIAL_DURATION),
                 "numberOfPeriods": offer.get("numberOfPeriods", 1),
+                "preserveCurrentOffer": offer.get("preserveCurrentOffer")
+                or offer.get("preserveCurrentIntroductoryOffer"),
             }
             for offer in intro_offers
         ],
@@ -2372,6 +2655,17 @@ def configure_subscription_pricing(
     for index, entry in enumerate(subscription_pricing_entries(config)):
         subscription_id = resolve_subscription_id(entry, product_map)
         price_point_id = entry.get("pricePointId") or entry.get("subscriptionPricePointId")
+        if entry.get("preserveCurrentPrice"):
+            results.append(
+                {
+                    "resource": "subscriptionPrices",
+                    "subscriptionId": subscription_id,
+                    "productId": entry.get("productId"),
+                    "skipped": True,
+                    "reason": "preserveCurrentPrice",
+                }
+            )
+            continue
         if not subscription_id or not price_point_id:
             raise AppStoreConnectError(
                 f"subscriptionPricing.products[{index}] requires subscriptionId or productId plus pricePointId."
@@ -2390,6 +2684,17 @@ def configure_subscription_pricing(
 
     for index, offer in enumerate(subscription_intro_offer_entries(config)):
         subscription_id = resolve_subscription_id(offer, product_map)
+        if offer.get("preserveCurrentOffer") or offer.get("preserveCurrentIntroductoryOffer"):
+            results.append(
+                {
+                    "resource": "subscriptionIntroductoryOffers",
+                    "subscriptionId": subscription_id,
+                    "productId": offer.get("productId"),
+                    "skipped": True,
+                    "reason": "preserveCurrentIntroductoryOffer",
+                }
+            )
+            continue
         if not subscription_id:
             raise AppStoreConnectError(
                 f"subscriptionPricing.introductoryOffers[{index}] requires subscriptionId or productId."
@@ -2607,6 +2912,8 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     validate_subscription_pricing_strategy(config, issues)
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)
+    validate_platform_release_strategy(config, issues)
+    validate_cross_platform_revenuecat_strategy(config, issues)
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
@@ -2689,6 +2996,23 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "appStoreConnectProbe": "GET /v1/apps?limit=1",
                 "revenueCatProbe": "mcp__RevenueCat.list_projects limit=1",
                 "onFailure": config.get("accessPreflight", {}).get("onFailure", "promptForReauthorization"),
+            }
+        )
+    cross_platform = config.get("crossPlatformRelease") or config.get("universalPurchase") or {}
+    revenuecat = config.get("revenueCatIntegration") or {}
+    rc_cross_platform = revenuecat.get("crossPlatform") or {}
+    if cross_platform or rc_cross_platform:
+        actions.append(
+            {
+                "action": "VERIFY",
+                "resource": "Apple platform sync / RevenueCat cross-platform subscription mapping",
+                "platform": (config.get("app") or {}).get("platform", "IOS"),
+                "distributionModel": cross_platform.get("distributionModel"),
+                "sharedAppleAppRecord": cross_platform.get("sharedAppleAppRecord"),
+                "sameSubscriptionGroupAndProductIds": cross_platform.get("sameSubscriptionGroupAndProductIds"),
+                "revenueCatProjectId": revenuecat.get("projectId"),
+                "entitlementIdentifier": revenuecat.get("entitlementIdentifier"),
+                "offeringIdentifier": revenuecat.get("offeringIdentifier"),
             }
         )
     app_info = config.get("appInfo", {})
@@ -2809,12 +3133,18 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
         )
     if config.get("subscriptionPricing"):
         growth_plan = plan_growth_strategy(config)
+        price_actions = growth_plan["plannedPricingActions"]
+        intro_actions = growth_plan["plannedIntroOfferActions"]
+        mutating_price_actions = [action for action in price_actions if action.get("action") != "NO_OP"]
+        mutating_intro_actions = [action for action in intro_actions if action.get("action") != "NO_OP"]
         actions.append(
             {
-                "action": "POST",
+                "action": "NO_OP" if not mutating_price_actions and not mutating_intro_actions else "POST",
                 "resource": "subscriptionPrices/subscriptionIntroductoryOffers",
-                "priceActionCount": len(growth_plan["plannedPricingActions"]),
-                "introOfferActionCount": len(growth_plan["plannedIntroOfferActions"]),
+                "priceActionCount": len(mutating_price_actions),
+                "introOfferActionCount": len(mutating_intro_actions),
+                "preservedPriceCount": len(price_actions) - len(mutating_price_actions),
+                "preservedIntroOfferCount": len(intro_actions) - len(mutating_intro_actions),
                 "freeProAccessTarget": growth_plan["freeProAccessModel"]["targetFreeAccessPercent"],
                 "tool": "configure-subscription-pricing",
             }
@@ -3268,6 +3598,7 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
     version_plan = None
     version_string = args.version_string
     build_number = args.build_number
+    args.platform = str(args.platform or "IOS").upper()
     if args.auto_version or not (version_string and build_number):
         version_plan = plan_versioning(
             args.project_dir,
@@ -3286,11 +3617,14 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
     ensure_app_store_version_format(version_string)
     ensure_version_format(build_number, "Build number")
     if not args.yes:
+        expected_ext = PLATFORM_BUILD_EXTENSIONS.get(args.platform)
         return {
             "dryRun": True,
             "appId": args.app_id,
             "file": str(file_path),
             "fileExists": file_path.exists(),
+            "expectedFileExtension": expected_ext,
+            "extensionMatchesPlatform": bool(not expected_ext or file_path.suffix.lower() == expected_ext),
             "versionString": version_string,
             "buildNumber": build_number,
             "platform": args.platform,
@@ -3301,6 +3635,9 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
     if client is None:
         raise AppStoreConnectError("An App Store Connect client is required when uploading builds.")
     ext = file_path.suffix.lower()
+    expected_ext = PLATFORM_BUILD_EXTENSIONS.get(args.platform)
+    if expected_ext and ext != expected_ext:
+        raise AppStoreConnectError(f"{args.platform} uploads should use {expected_ext} files, got {ext or 'no extension'}.")
     uti = "com.apple.ipa" if ext == ".ipa" else "com.apple.pkg" if ext == ".pkg" else None
     if not uti:
         raise AppStoreConnectError("Build upload API supports .ipa and .pkg files.")

@@ -30,7 +30,9 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
 - Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
-- Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter and Xcode `destination=upload` fallbacks plus optional automatic versioning.
+- Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with platform validation, Transporter and Xcode `destination=upload` fallbacks, plus optional automatic versioning.
+- Prepare native macOS platform versions with `MAC_OS`, `.pkg` artifacts, and `APP_DESKTOP` screenshots.
+- Validate iOS/macOS universal-purchase setup, shared Apple subscription products, and RevenueCat same-project entitlement/offering/package mapping so platform apps stay independent but user-facing pricing and access remain consistent.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
 - Warn when version localizations are missing `whatsNew` copy so App Store version history/changelog text is not forgotten.
 - Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
@@ -47,6 +49,9 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 - [Build uploads](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-builduploads)
 - [Upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
 - [Platform version information](https://developer.apple.com/help/app-store-connect/reference/platform-version-information/)
+- [Universal purchase](https://developer.apple.com/support/universal-purchase/)
+- [Configure In-App Purchases](https://developer.apple.com/help/app-store-connect/configure-in-app-purchase-settings/overview-for-configuring-in-app-purchases/)
+- [In-App Purchase information](https://developer.apple.com/help/app-store-connect/reference/in-app-purchase-information)
 - [Screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/)
 - [Creating your product page](https://developer.apple.com/app-store/product-page/)
 - [Custom product pages](https://developer.apple.com/app-store/custom-product-pages/)
@@ -59,6 +64,9 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 - [RevenueCat MCP Server](https://www.revenuecat.com/docs/tools/mcp)
 - [RevenueCat MCP setup and authentication](https://www.revenuecat.com/docs/tools/mcp/setup)
 - [RevenueCat API keys and OAuth tokens](https://www.revenuecat.com/docs/projects/authentication)
+- [RevenueCat macOS / Catalyst](https://www.revenuecat.com/docs/getting-started/installation/macos)
+- [RevenueCat entitlements](https://www.revenuecat.com/docs/getting-started/entitlements)
+- [RevenueCat offerings and packages](https://www.revenuecat.com/docs/offerings/overview)
 - [RevenueCat State of Subscription Apps 2025](https://www.revenuecat.com/state-of-subscription-apps-2025/)
 - [RevenueCat subscription trends and benchmarks for 2026](https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026/)
 
@@ -230,6 +238,19 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --yes
 ```
 
+Upload a native macOS App Store build with the API:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
+  --app-id 1234567890 \
+  --file build/App.pkg \
+  --version-string 1.0.0 \
+  --build-number 42 \
+  --platform MAC_OS \
+  --wait 1800 \
+  --yes
+```
+
 Upload a build and let the plugin infer missing version/build values:
 
 ```bash
@@ -260,6 +281,8 @@ By default, `freeProAccessModel` gives users a complete Free product experience 
 Creators can still change the setup. Set `creatorCanOverride` to true, adjust `targetFreeAccessPercent`/`targetProAccessPercent`, and add `customAccessSplitReason` when a different access split or pricing model is intentional.
 
 Pricing research belongs beside the subscription setup. Keep `pricingResearch.lastReviewedOn`, `reviewIntervalMonths`, `nextReviewDue`, and `sources` current. The plugin defaults to a six-month review cycle because plan-duration benchmarks, competitive price anchors, category willingness to pay, and conversion patterns change regularly. The default price anchors are weekly `$4.99`, monthly `$9.99`, and yearly `$29.99`; add `customPriceReason`, `customCadenceReason`, or `customIntroOfferReason` when a different launch setup is intentional.
+
+For iOS + macOS releases, record `crossPlatformRelease` and `revenueCatIntegration.crossPlatform`. When the Mac app is a universal-purchase platform version of the same product, use the same App Store app record, bundle ID, subscription group/products, RevenueCat project, entitlement, offering, and package identifiers. If the Mac app is separate, provide a platform product mapping and attach equivalent products to the same RevenueCat packages/entitlement. Use `preserveCurrentPrice` and `preserveCurrentIntroductoryOffer` when a platform release should intentionally reuse existing prices and trials without posting new pricing changes.
 
 Default paywalls should use `Start 14-day free trial` as the primary CTA and show `✓ No payment due now` below the button only when StoreKit or RevenueCat confirms the selected product has a real free-trial introductory offer.
 

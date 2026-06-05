@@ -60,19 +60,70 @@
       ]
     }
   },
+  "crossPlatformRelease": {
+    "enabled": true,
+    "applePlatforms": [
+      "IOS",
+      "MAC_OS"
+    ],
+    "sourcePlatform": "IOS",
+    "targetPlatform": "MAC_OS",
+    "distributionModel": "appleUniversalPurchase",
+    "sharedAppleAppRecord": true,
+    "sameBundleIdForUniversalPurchase": true,
+    "sameSubscriptionGroupAndProductIds": true,
+    "separatePlatformProductIds": false,
+    "platformProductMapping": [],
+    "desktopOptimizationRequired": true,
+    "experienceParityPolicy": "Keep pricing, paywall copy, entitlement behavior, restore purchases, and premium feature access consistent while allowing desktop-specific navigation, keyboard, window, and screenshot treatment.",
+    "macOS": {
+      "buildArtifact": ".pkg",
+      "screenshotDisplayType": "APP_DESKTOP",
+      "universalPurchaseNotes": "For Apple universal purchase platform versions, use the same App Store Connect app record, Apple ID, SKU, and bundle ID. In-app purchases can be shared across the app's platform versions. If a Mac app is distributed as a separate app record, map separate Mac product IDs to the same RevenueCat packages and entitlement instead."
+    },
+    "bestPracticeSources": [
+      "https://developer.apple.com/support/universal-purchase/",
+      "https://developer.apple.com/help/app-store-connect/configure-in-app-purchase-settings/overview-for-configuring-in-app-purchases/",
+      "https://developer.apple.com/help/app-store-connect/reference/in-app-purchase-information",
+      "https://www.revenuecat.com/docs/getting-started/installation/macos",
+      "https://www.revenuecat.com/docs/getting-started/entitlements",
+      "https://www.revenuecat.com/docs/offerings/overview",
+      "https://www.revenuecat.com/docs/projects/authentication"
+    ],
+    "lastReviewedOn": "2026-06-05"
+  },
   "revenueCatIntegration": {
     "enabled": true,
     "projectId": "revenuecat-project-id",
     "projectName": "Example Product",
     "entitlementIdentifier": "pro",
     "offeringIdentifier": "default",
+    "apps": [
+      {
+        "platform": "IOS",
+        "store": "app_store",
+        "bundleId": "com.example.product",
+        "appId": "revenuecat-ios-app-id",
+        "publicApiKey": "appl_public_sdk_key"
+      }
+    ],
     "packages": [
       "$rc_weekly",
       "$rc_monthly",
       "$rc_annual"
     ],
     "requiresAuthenticatedMcp": true,
-    "productsMirrorAppStoreConnectSubscriptions": true
+    "productsMirrorAppStoreConnectSubscriptions": true,
+    "crossPlatform": {
+      "enabled": true,
+      "sameProject": true,
+      "sharedEntitlement": true,
+      "sharedOffering": true,
+      "packagesRepresentEquivalentProducts": true,
+      "universalPurchaseMacUsesApplePublicKey": true,
+      "separatePublicSdkKeyPerRevenueCatApp": true,
+      "notes": "RevenueCat entitlements are shared across apps in the same project. Packages should group equivalent Apple products for each platform or app record. For universal-purchase Mac apps, the Apple public SDK key may be shared; add a separate Mac app entry only when RevenueCat support enables a legacy/separate Mac configuration or the Mac binary uses a separate app record."
+    }
   },
   "pricingResearch": {
     "lastReviewedOn": "2026-06-01",

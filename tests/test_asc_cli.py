@@ -293,6 +293,134 @@ class AscCliValidationTests(unittest.TestCase):
         plan = cli.plan_submission(config)
         self.assertEqual(len(plan["actions"]), 2)
 
+    def test_macos_upload_rejects_ipa_for_mac_platform(self):
+        cli = load_cli()
+        with tempfile.NamedTemporaryFile(suffix=".ipa") as file:
+            args = type(
+                "Args",
+                (),
+                {
+                    "file": file.name,
+                    "version_string": "1.0.0",
+                    "build_number": "42",
+                    "auto_version": False,
+                    "project_dir": ".",
+                    "release_level": "auto",
+                    "iteration_count": None,
+                    "current_version": None,
+                    "current_build": None,
+                    "no_git": True,
+                    "yes": True,
+                    "platform": "MAC_OS",
+                    "app_id": "1234567890",
+                    "wait": 0,
+                },
+            )()
+            with self.assertRaisesRegex(cli.AppStoreConnectError, "MAC_OS uploads should use .pkg"):
+                cli.upload_build_api(args, client=object())
+
+    def test_cross_platform_subscription_plan_preserves_existing_prices_and_trials(self):
+        cli = load_cli()
+        products = [
+            ("sub-weekly", "com.example.product.pro.weekly", "ONE_WEEK", "$rc_weekly"),
+            ("sub-monthly", "com.example.product.pro.monthly", "ONE_MONTH", "$rc_monthly"),
+            ("sub-yearly", "com.example.product.pro.yearly", "ONE_YEAR", "$rc_annual"),
+        ]
+        config = {
+            "app": {"platform": "MAC_OS"},
+            "build": {"packagePath": "build/App.pkg"},
+            "crossPlatformRelease": {
+                "enabled": True,
+                "applePlatforms": ["IOS", "MAC_OS"],
+                "distributionModel": "appleUniversalPurchase",
+                "sharedAppleAppRecord": True,
+                "sameBundleIdForUniversalPurchase": True,
+                "sameSubscriptionGroupAndProductIds": True,
+            },
+            "revenueCatIntegration": {
+                "enabled": True,
+                "projectId": "proj-example",
+                "entitlementIdentifier": "pro",
+                "offeringIdentifier": "default",
+                "apps": [
+                    {
+                        "platform": "IOS",
+                        "store": "app_store",
+                        "bundleId": "com.example.product",
+                        "appId": "app-example",
+                        "publicApiKey": "appl_public",
+                    }
+                ],
+                "packages": [package for _, _, _, package in products],
+                "requiresAuthenticatedMcp": True,
+                "productsMirrorAppStoreConnectSubscriptions": True,
+                "crossPlatform": {
+                    "enabled": True,
+                    "sameProject": True,
+                    "sharedEntitlement": True,
+                    "sharedOffering": True,
+                    "packagesRepresentEquivalentProducts": True,
+                    "universalPurchaseMacUsesApplePublicKey": True,
+                },
+            },
+            "subscriptionPricing": {
+                "appDownloadModel": "freeWithSubscription",
+                "baseTerritory": "USA",
+                "useSingleSubscriptionGroup": True,
+                "creatorCanOverrideCadences": True,
+                "products": [
+                    {
+                        "subscriptionId": subscription_id,
+                        "productId": product_id,
+                        "period": period,
+                        "territory": "USA",
+                        "pricePointId": "price-point",
+                        "preserveCurrentPrice": True,
+                    }
+                    for subscription_id, product_id, period, _ in products
+                ],
+                "introductoryOffers": [
+                    {
+                        "subscriptionId": subscription_id,
+                        "productId": product_id,
+                        "territory": "USA",
+                        "offerMode": "FREE_TRIAL",
+                        "duration": "TWO_WEEKS",
+                        "numberOfPeriods": 1,
+                        "preserveCurrentIntroductoryOffer": True,
+                    }
+                    for subscription_id, product_id, _, _ in products
+                ],
+            },
+            "onboarding": {
+                "collectsPreferences": True,
+                "paywallTiming": "afterFirstPersonalizedValue",
+                "restorePurchasesVisible": True,
+                "termsAndPrivacyVisibleOnPaywall": True,
+            },
+            "reviewPromptPolicy": {
+                "usesStoreKitRequestReview": True,
+                "minimumSessions": 3,
+                "minimumDaysSinceInstall": 3,
+                "localCooldownDays": 90,
+                "positiveMomentTriggers": [{"event": "used_app", "afterSuccessfulUserOutcome": True}],
+                "blockedContexts": ["launch", "paywall", "purchase"],
+            },
+        }
+        growth_plan = cli.plan_growth_strategy(config)
+        self.assertTrue(growth_plan["ok"])
+        self.assertTrue(all(action["action"] == "NO_OP" for action in growth_plan["plannedPricingActions"]))
+        self.assertTrue(all(action["action"] == "NO_OP" for action in growth_plan["plannedIntroOfferActions"]))
+        release_plan = cli.plan_submission(config)
+        subscription_action = next(
+            action for action in release_plan["actions"] if action["resource"] == "subscriptionPrices/subscriptionIntroductoryOffers"
+        )
+        self.assertEqual(subscription_action["action"], "NO_OP")
+        self.assertEqual(subscription_action["priceActionCount"], 0)
+        self.assertEqual(subscription_action["introOfferActionCount"], 0)
+        self.assertEqual(subscription_action["preservedPriceCount"], 3)
+        self.assertEqual(subscription_action["preservedIntroOfferCount"], 3)
+
     def test_plan_versioning_reads_xcode_settings_and_iterations(self):
         cli = load_cli()
         with tempfile.TemporaryDirectory() as tmp:

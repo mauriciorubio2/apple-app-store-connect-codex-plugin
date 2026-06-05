@@ -11,6 +11,11 @@
       "https://www.revenuecat.com/docs/tools/mcp",
       "https://www.revenuecat.com/docs/tools/mcp/setup",
       "https://www.revenuecat.com/docs/projects/authentication",
+      "https://www.revenuecat.com/docs/getting-started/installation/macos",
+      "https://www.revenuecat.com/docs/getting-started/entitlements",
+      "https://www.revenuecat.com/docs/offerings/overview",
+      "https://developer.apple.com/support/universal-purchase/",
+      "https://developer.apple.com/help/app-store-connect/configure-in-app-purchase-settings/overview-for-configuring-in-app-purchases/",
       "https://www.revenuecat.com/state-of-subscription-apps-2025/",
       "https://www.revenuecat.com/blog/growth/subscription-app-trends-benchmarks-2026/"
     ]
@@ -213,6 +218,31 @@
         "Xcode Organizer upload"
       ],
       "notes": "If the Build Uploads API rejects checksum metadata or Transporter is unavailable, use Xcode's archive export upload fallback, then poll builds until the uploaded build is processed/VALID and PATCH appStoreVersions with version.buildId. Ready for submission means the uploaded build is processed and selected in App Store Connect, not merely archived locally."
+    },
+    {
+      "group": "Apple universal purchase and macOS platform sync",
+      "resource": "App Store Connect app record, platform versions, in-app purchases, and RevenueCat project mapping",
+      "endpointCoverage": [
+        "POST /v1/appStoreVersions with platform=MAC_OS",
+        "PATCH /v1/appStoreVersions/{id} build relationship",
+        "POST /v1/buildUploads with platform=MAC_OS",
+        "RevenueCat MCP list_projects/list_apps/list_entitlements/list_offerings/list_packages"
+      ],
+      "automatableFields": [
+        "MAC_OS platform version creation",
+        ".pkg upload requirement",
+        "APP_DESKTOP screenshot target",
+        "same App Store app record declaration",
+        "same bundle ID declaration",
+        "shared Apple subscription product catalog declaration",
+        "separate platform product mapping when not universal purchase",
+        "RevenueCat same-project check",
+        "RevenueCat shared entitlement check",
+        "RevenueCat shared offering/paywall check",
+        "RevenueCat package equivalence check",
+        "app-specific public SDK key documentation"
+      ],
+      "notes": "For Apple universal purchase, add macOS as another platform version under the same app record and keep equivalent subscriptions in the shared app product catalog. RevenueCat should use one project, the same entitlement, and the same offering/paywall for a consistent iOS/macOS experience. If the Mac app is a separate app record or legacy Mac configuration, use platform-specific Apple product IDs but map them into equivalent RevenueCat packages that unlock the same entitlement."
     },
     {
       "group": "Local project versioning",

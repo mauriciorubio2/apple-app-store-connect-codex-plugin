@@ -236,6 +236,13 @@ Treat missing screenshots, incomplete processing, suspiciously small files, most
 
 The plugin supports Apple's Build Uploads API for `.ipa` and `.pkg` files and also includes a Transporter fallback.
 
+For platform uploads:
+
+- iOS, tvOS, and visionOS uploads use `.ipa`.
+- macOS App Store uploads use `.pkg`.
+- macOS App Store screenshots use the `APP_DESKTOP` display target.
+- Always pass the target platform explicitly for Mac uploads, for example `--platform MAC_OS`, so the plugin validates the artifact and creates or patches the correct platform version.
+
 When App Review rejects artwork or bundled assets, increment the build number, archive a new binary, upload the new build, and update `version.buildId`. Metadata-only changes are not enough for icon, asset catalog, bundled screenshot, or binary content changes.
 
 Use this upload fallback order:
@@ -327,6 +334,36 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-transpor
 ```
 
 Use the build relationship in `version.buildId` after Apple finishes processing the build.
+
+## iOS And macOS Sync
+
+When the user wants an iOS app and a native macOS app to stay independent but experience-consistent, treat them as separate platform targets sharing a release contract:
+
+- Do not change an iOS build or App Store version that the user says is already approved, under review, or otherwise frozen. Work on the `MAC_OS` platform version only unless the user explicitly asks to change iOS.
+- Prefer Apple universal purchase when the Mac app is the desktop version of the same product. Apple platform versions under universal purchase use the same App Store Connect app record, Apple ID, SKU, and bundle ID, and in-app purchases can be shared across platform versions.
+- If the Mac app must be a separate app record or legacy Mac configuration, create separate Apple product IDs for Mac, but map them to equivalent RevenueCat packages and the same entitlement/offering so user-facing access and paywall behavior stay aligned.
+- Keep shared app logic, product IDs, entitlement identifiers, paywall copy, pricing, restore behavior, and App Review subscription evidence in a shared code/config layer where the app architecture allows it. Let Mac differ in desktop interaction details such as windows, sidebars, keyboard shortcuts, toolbar controls, and `APP_DESKTOP` screenshots.
+- Record the decision in `crossPlatformRelease`: source/target platforms, `distributionModel`, whether the app uses the shared Apple app record, whether subscription product IDs are shared or mapped, and source links reviewed on the release date.
+
+For RevenueCat with iOS + macOS:
+
+- Use the same RevenueCat project for related iOS/macOS apps so entitlements are shared across apps in that project.
+- Use one entitlement such as `pro` for equivalent premium access on both platforms.
+- Use one offering/paywall such as `default` when pricing, trial, and paywall copy should stay consistent.
+- Configure packages as the cross-platform grouping layer. A weekly package should contain the equivalent weekly product for each platform/app record, monthly the equivalent monthly product, and annual/yearly the equivalent annual product.
+- Configure the SDK with the correct public SDK key only. Public keys are app-specific under a project; secret keys must never be embedded in client apps. For universal-purchase Mac apps, RevenueCat's macOS guidance is based on Apple universal purchases and may use the Apple app public key. Add a separate Mac RevenueCat app/public key only when the RevenueCat dashboard/support flow requires a distinct Mac configuration.
+- If the app is still using native StoreKit while RevenueCat is used only for catalog/release coordination, record that explicitly in `revenueCatIntegration.appIntegration` and do not claim that the binary is RevenueCat-SDK-powered until the SDK is actually integrated and tested.
+
+Ready-for-submission sequence for a Mac platform version:
+
+1. Run `doctor`, App Store Connect preflight, and the RevenueCat `list_projects` probe.
+2. Validate `crossPlatformRelease` and `revenueCatIntegration.crossPlatform`.
+3. Upload the signed `.pkg` with `upload-build-api --platform MAC_OS` after dry run and explicit confirmation.
+4. Wait for the build to process and become selectable.
+5. Create or patch the `MAC_OS` App Store version, select the processed Mac build, and apply Mac-specific review notes.
+6. Upload `APP_DESKTOP` screenshots.
+7. Verify free download pricing, shared subscription pricing/trials, RevenueCat entitlement/offering/package mapping, and subscription review screenshots.
+8. Stop before review submission unless the user explicitly confirms submitting the Mac version for review.
 
 ## Applying Metadata
 
