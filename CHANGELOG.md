@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.12.0] - 2026-06-05
+
+- Added validation warnings for missing `versionLocalizations[].whatsNew` so App Store version history/changelog copy is not forgotten during release prep.
+- Enlarged default App Store screenshot composition with bigger device captures, larger CTA pills, and guidance to verify UI legibility before upload.
+- Expanded release skill guidance for user-visible What's New copy and screenshot sizing best practices.
+
 ## [1.11.0] - 2026-06-04
 
 - Added subscription App Review screenshot verification for missing, unprocessed, suspiciously small, mostly black, or duplicate screenshots.

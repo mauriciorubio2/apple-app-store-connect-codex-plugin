@@ -153,11 +153,11 @@ def render_one(config: dict[str, Any], screen: dict[str, Any], output_dir: Path)
     top = int(height * 0.07)
     max_text_width = width - margin * 2
 
-    headline_font = font(max(64, int(width * 0.086)), bold=True)
-    sub_font = font(max(34, int(width * 0.036)))
-    badge_font = font(max(26, int(width * 0.032)), bold=True)
-    cta_font = font(max(28, int(width * 0.034)), bold=True)
-    cta_note_font = font(max(24, int(width * 0.029)), bold=True)
+    headline_font = font(max(78, int(width * 0.096)), bold=True)
+    sub_font = font(max(38, int(width * 0.040)))
+    badge_font = font(max(32, int(width * 0.038)), bold=True)
+    cta_font = font(max(36, int(width * 0.044)), bold=True)
+    cta_note_font = font(max(30, int(width * 0.034)), bold=True)
 
     y = top
     for line in wrap_text(draw, screen["headline"], headline_font, max_text_width):
@@ -208,9 +208,9 @@ def render_one(config: dict[str, Any], screen: dict[str, Any], output_dir: Path)
         source = Path.cwd() / source
     capture = Image.open(source).convert("RGB")
 
-    phone_top = int(height * float(screen.get("phoneTopRatio") or config.get("phoneTopRatio", 0.34)))
-    phone_width = int(width * float(screen.get("phoneWidthRatio") or config.get("phoneWidthRatio", 0.72)))
-    phone_height = min(int(height * 0.60), int(phone_width * capture.height / capture.width) + 80)
+    phone_top = int(height * float(screen.get("phoneTopRatio") or config.get("phoneTopRatio", 0.32)))
+    phone_width = int(width * float(screen.get("phoneWidthRatio") or config.get("phoneWidthRatio", 0.84)))
+    phone_height = min(int(height * 0.66), int(phone_width * capture.height / capture.width) + 72)
     phone_left = (width - phone_width) // 2
     phone_box = (phone_left, phone_top, phone_left + phone_width, phone_top + phone_height)
     shadow = (0, 0, 0)
@@ -221,7 +221,7 @@ def render_one(config: dict[str, Any], screen: dict[str, Any], output_dir: Path)
         fill=tuple(max(0, channel - 20) for channel in background),
     )
     rounded_rectangle(draw, phone_box, radius=58, fill=(20, 24, 31), outline=shadow, width=3)
-    inset = 30
+    inset = 26
     screen_box = (phone_box[0] + inset, phone_box[1] + inset, phone_box[2] - inset, phone_box[3] - inset)
     available_w = screen_box[2] - screen_box[0]
     available_h = screen_box[3] - screen_box[1]

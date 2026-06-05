@@ -2456,6 +2456,14 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
         for field in ("description", "promotionalText", "whatsNew"):
             add_length_issue(issues, prefix + "." + field, loc.get(field), *TEXT_LIMITS[field])
         validate_keywords(loc.get("keywords"), issues)
+        if not str(loc.get("whatsNew") or "").strip():
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": prefix + ".whatsNew",
+                    "message": "Add user-visible What's New copy so App Store version history/changelog is not blank.",
+                }
+            )
         if not loc.get("supportUrl"):
             issues.append(
                 {

@@ -25,10 +25,18 @@ class AssetTests(unittest.TestCase):
 
     def test_manifest_has_release_metadata(self):
         manifest = json.loads((PLUGIN / ".codex-plugin/plugin.json").read_text())
-        self.assertEqual(manifest["version"], "1.11.0")
+        self.assertEqual(manifest["version"], "1.12.0")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["repository"], "https://github.com/mauriciorubio2/apple-app-store-connect-codex-plugin")
         self.assertIn("mcpServers", manifest)
+
+    def test_screenshot_recipe_defaults_to_large_device_and_cta_layout(self):
+        recipe = json.loads((PLUGIN / "assets/screenshot-recipe.json").read_text())
+        self.assertGreaterEqual(recipe["phoneWidthRatio"], 0.84)
+        self.assertLessEqual(recipe["phoneTopRatio"], 0.32)
+        self.assertTrue(
+            any("large enough device capture" in note for note in recipe["recipeNotes"])
+        )
 
 
 if __name__ == "__main__":

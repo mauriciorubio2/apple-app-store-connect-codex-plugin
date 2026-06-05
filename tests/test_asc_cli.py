@@ -53,6 +53,36 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertIn("appInfoLocalizations[en-US].name", fields)
         self.assertTrue(any(issue["field"] == "keywords" for issue in result["issues"]))
 
+    def test_missing_whats_new_warns_for_version_history(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "appInfoLocalizations": [
+                {
+                    "locale": "en-US",
+                    "name": "Example Product",
+                    "privacyPolicyUrl": "https://example.com/privacy",
+                }
+            ],
+            "versionLocalizations": [
+                {
+                    "locale": "en-US",
+                    "description": "A useful app with clear user value.",
+                    "keywords": "planner,focus",
+                    "supportUrl": "https://example.com/support",
+                }
+            ],
+        }
+        result = cli.validate_submission_config(config)
+        self.assertTrue(result["ok"])
+        self.assertTrue(
+            any(
+                issue["field"] == "versionLocalizations[en-US].whatsNew"
+                and issue["severity"] == "warning"
+                for issue in result["issues"]
+            )
+        )
+
     def test_subscription_description_requires_terms_link(self):
         cli = load_cli()
         config = {

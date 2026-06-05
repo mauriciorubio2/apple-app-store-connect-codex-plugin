@@ -124,6 +124,7 @@ Use Apple's product page recommendations:
 - Keywords: 100 characters maximum. Use relevant comma-separated terms with no spaces after commas. Avoid duplicates, plural variants when singular is present, category names, competitor names, trademarks, celebrity names, irrelevant terms, and objectionable terms.
 - Promotional text: 170 characters maximum. Use for current launches, offers, or updates; do not use it for search ranking keywords.
 - What's New: describe user-visible changes plainly. Avoid empty "bug fixes" copy when the release has meaningful improvements.
+- Version history: before applying metadata for any update or resubmission, make sure every `versionLocalizations[]` entry has `whatsNew` copy that reads like App Store version-history/changelog text. Mention user-visible features, content/data refreshes, review-compliance art or metadata fixes when relevant, and meaningful bug fixes. Keep it concise, avoid internal implementation details, and do not include exact subscription prices unless the creator explicitly accepts localization/currency maintenance risk.
 
 ## Third-Party IP Safety
 
@@ -167,6 +168,7 @@ Apple allows one to ten screenshots per supported device size/localization. The 
 - Use bright solid or lightly patterned branded backgrounds that stand out in search results while preserving app-legibility. Avoid busy backgrounds that compete with the device capture.
 - Make one benefit unmistakable per screenshot and align it with high-intent ASO/Apple Ads search terms.
 - Keep overlay copy short enough to scan, with a sales-focused header and an explicit CTA such as "Free to download", "Track every kickoff", "Start 14-day free trial", or "Included with Pro".
+- Make the CTA pill and device capture large enough to read in App Store search/gallery views. Small device mockups and tiny CTAs underperform visually, especially on mobile App Store pages.
 - Include at least one dark-mode screenshot if dark mode is a meaningful part of the experience.
 - For subscription apps, make the Free experience look useful in the first screenshots and show at least one Pro benefit as an upgrade. If subscriptions or paid features are shown, mark them clearly in the screenshot itself with labels such as "Pro feature", "Included with Pro", "Full set with Pro", or the subscription tier name.
 - Do not imply a paid feature is free. Do not hide terms, paywall state, or subscription context.
@@ -185,10 +187,10 @@ Use this repeatable recipe when creating App Store screenshots for a new app:
    - Screenshot 5: depth feature such as history, archive, analytics, exports, or rankings.
    - Screenshot 6: paywall, trial, subscription value, or upgrade screen when monetized.
 4. Use bright solid or simple branded color backgrounds, not plain raw captures and not busy patterns, so screenshots stand out in App Store search.
-5. Keep text short and mandatory: one big bold sales-focused headline, one benefit line, and one CTA pill.
+5. Keep text short and mandatory: one big bold sales-focused headline, one benefit line, and one large CTA pill.
 6. Include search-friendly wording naturally, but do not keyword-stuff or make claims the app cannot support.
 7. For paid features, set `paid: true` and use a CTA or badge that names the tier, so the renderer adds a visible Pro label and the screenshot cannot be mistaken for a free feature.
-8. Render a contact sheet or quick preview and check headline size, CTA visibility, Pro labels, text legibility, and device UI legibility before upload.
+8. Render a contact sheet or quick preview and check headline size, CTA visibility, Pro labels, text legibility, and device UI legibility before upload. If the device UI is hard to inspect, increase `phoneWidthRatio` before upload.
 
 The bundled recipe is intentionally generic and should be copied, not edited in place:
 

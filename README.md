@@ -17,7 +17,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Run a release preflight that verifies App Store Connect API access and requires a RevenueCat MCP probe before subscription automation begins.
 - Validate key Apple metadata limits, including 30-character name/subtitle, 100-character keywords, 170-character promotional text, and screenshot count rules.
 - Generate App Store screenshot composites from raw UI captures and clearly label paid/subscription features.
-- Generate brighter, conversion-focused screenshot composites with salesy ASO/Apple Ads-aware headers, CTA pills, and paid-feature badges.
+- Generate brighter, conversion-focused screenshot composites with salesy ASO/Apple Ads-aware headers, large CTA pills, large device captures, and paid-feature badges.
 - Guide iOS app icon selection with five distinct, App Store-safe design options before replacing bundled icon assets.
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
@@ -31,6 +31,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with Transporter and Xcode `destination=upload` fallbacks plus optional automatic versioning.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
+- Warn when version localizations are missing `whatsNew` copy so App Store version history/changelog text is not forgotten.
 - Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
 - Prepare IP-sensitive releases and resubmissions with a generic third-party IP checklist, optional `ipReview` validation warnings, no-affiliation disclaimer guidance, and new-binary reminders for asset changes.
 - Create dry-run plans so a human can approve exactly what will change.
@@ -276,7 +277,7 @@ python3 plugins/apple-app-store-connect/scripts/generate_screenshots.py \
   --config appstore-screenshot-recipe.json
 ```
 
-Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid or lightly patterned branded backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and paywall or upgrade value with a CTA note such as `✓ No payment due now`.
+Screenshot copy should lead with one high-intent user benefit per image, include search-friendly terms naturally, use bright solid or lightly patterned branded backgrounds that stand out in App Store search results, and clearly label Pro or paid features. Keep the first three screenshots focused on conversion: the core value proposition, a common search/action workflow, and the strongest differentiator. Make the CTA pill and device capture large enough to inspect on mobile App Store pages. The bundled `screenshot-recipe.json` gives a six-shot App Store sequence: core value, search/action workflow, strongest differentiator, progress/status view, deeper archive/analytics, and paywall or upgrade value with a CTA note such as `✓ No payment due now`.
 
 ## App Icon Options
 
