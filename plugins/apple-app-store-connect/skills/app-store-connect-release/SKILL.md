@@ -231,7 +231,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-r
   --download-dir build/app-store/subscription-review-readback
 ```
 
-Treat missing screenshots, incomplete processing, suspiciously small files, mostly black screenshots, or identical screenshots reused across different weekly/monthly/yearly plan expectations as blockers. For multi-plan paywalls, the weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason.
+Treat missing screenshots, incomplete processing, suspiciously small files, mostly black screenshots, macOS submissions that still have phone-sized portrait screenshots, or identical screenshots reused across different weekly/monthly/yearly plan expectations as blockers. For multi-plan paywalls, the weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason. For macOS submissions, set `subscriptionReviewScreenshots.requiredPlatform` to `MAC_OS` and use desktop-shaped Mac paywall screenshots.
 
 ## Build Uploads
 
@@ -298,7 +298,7 @@ xcodebuild -exportArchive \
 
 For the Xcode fallback, the export options should use `destination=upload`, automatic signing when appropriate, and `signingCertificate=Apple Distribution`. Remove stale manual `provisioningProfiles` from the upload export options when automatic signing is intended.
 
-After any upload succeeds, poll App Store Connect builds until the new build is processed and `VALID`, then set `version.buildId` to that build ID and run `apply-metadata --yes` after confirmation. "Ready for submission" means the App Store Connect version has the uploaded build selected, required metadata applied, screenshots uploaded, subscription review screenshots verified from App Store Connect readback, pricing/subscriptions configured, first-time IAP/subscription products selected with the app version when required, review details complete, and preflight checks passing. A local archive, GitHub push, or unselected uploaded build is not ready for submission.
+After any upload succeeds, poll App Store Connect builds until the new build is processed and `VALID`, then set `version.buildId` to that build ID and run `apply-metadata --yes` after confirmation. "Ready for submission" means the App Store Connect version has the uploaded build selected, required metadata applied, screenshots uploaded, subscription prices/trials configured, subscription availability verified, subscription review screenshots uploaded and verified from App Store Connect readback, first-time IAP/subscription products selected with the app version when required, review details complete, and preflight checks passing. A local archive, GitHub push, or unselected uploaded build is not ready for submission.
 
 ## Versioning
 
@@ -464,6 +464,8 @@ For subscriptions and paid features:
 - Use a first-time introductory offer only after the onboarding flow has shown value; display it with StoreKit/paywall terms, not vague marketing copy.
 - When a real StoreKit or RevenueCat trial is present, the default primary button text is `Start 14-day free trial`, with `✓ No payment due now` below the button. Never show this tagline for a product that does not have a real free-trial introductory offer.
 - Use `list-subscription-price-points` to find price point IDs, then `configure-subscription-pricing` to dry-run and apply subscription prices/intro offers after explicit confirmation.
+- Use `verify-subscription-availability` and `configure-subscription-availability` because subscription prices/trials do not automatically make a product available in every sale territory.
+- Use `upload-subscription-review-screenshots --replace-existing` only after the user confirms replacing the current product review screenshots; rerun `verify-subscription-review-screenshots` after upload.
 - Include Privacy Policy and Terms of Use links in the App Store description, even if the app info localization already has a privacy URL.
 - Include a subscription information section that explains the trial, weekly/monthly/yearly or relevant plan cadence, auto-renewal, cancellation timing, account billing, and account settings management.
 - For first-time IAPs/subscriptions, upload and select a new processed build, then select the products with the app version in App Store Connect's website UI when Apple requires it. If direct `subscriptionSubmissions` calls fail with `FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION`, treat it as a manual website-selection requirement, not a credential failure. Record the selected build and UI confirmation in `firstTimeSubscriptionSubmission` before calling the app ready for review.
@@ -485,6 +487,26 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscriptio
 
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-pricing \
   --config appstore-submission.json --yes
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-availability \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-availability \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-availability \
+  --config appstore-submission.json --yes
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-subscription-review-screenshots \
+  --config appstore-submission.json \
+  --replace-existing \
+  --wait 300
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-subscription-review-screenshots \
+  --config appstore-submission.json \
+  --replace-existing \
+  --wait 300 \
+  --yes
 ```
 
 ## Onboarding And Review Prompts
@@ -534,9 +556,13 @@ When the plugin MCP server is installed, prefer these tools over shell calls:
 - `asc_configure_free_download`
 - `asc_plan_growth_strategy`
 - `asc_configure_subscription_pricing`
+- `asc_configure_subscription_availability`
+- `asc_verify_subscription_availability`
 - `asc_list_subscription_price_points`
 - `asc_list_apps`
 - `asc_upload_build_api`
 - `asc_generate_screenshots`
+- `asc_upload_subscription_review_screenshots`
+- `asc_verify_subscription_review_screenshots`
 
 The same confirmation rules apply to MCP tools: pass `confirm: true` only after the user approves the action.

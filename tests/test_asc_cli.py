@@ -2,6 +2,7 @@ import importlib.util
 import json
 import contextlib
 import io
+import os
 import plistlib
 import sys
 import tempfile
@@ -371,6 +372,64 @@ class AscCliValidationTests(unittest.TestCase):
                 cli.local_screenshot_pixel_summary(path),
             )
         self.assertTrue(any(issue["severity"] == "error" for issue in issues))
+
+    def test_macos_subscription_review_screenshot_rejects_phone_dimensions(self):
+        cli = load_cli()
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow is not installed")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "phone.png"
+            image = Image.frombytes("RGB", (640, 920), os.urandom(640 * 920 * 3))
+            image.save(path)
+            config = {
+                "app": {"platform": "MAC_OS"},
+                "subscriptionAvailability": {"allAppStoreTerritories": True},
+                "subscriptions": [
+                    {
+                        "id": "sub-weekly",
+                        "productId": "com.example.pro.weekly",
+                        "period": "ONE_WEEK",
+                        "reviewScreenshot": {
+                            "source": str(path),
+                            "expectedSelectedPlan": "weekly",
+                        },
+                    }
+                ],
+            }
+            result = cli.validate_submission_config(config)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any(issue["field"].endswith(".dimensions") for issue in result["issues"]))
+
+    def test_macos_subscription_review_screenshot_accepts_desktop_dimensions(self):
+        cli = load_cli()
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow is not installed")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "desktop.png"
+            image = Image.frombytes("RGB", (1200, 800), os.urandom(1200 * 800 * 3))
+            image.save(path)
+            config = {
+                "app": {"platform": "MAC_OS"},
+                "subscriptionAvailability": {"allAppStoreTerritories": True},
+                "subscriptions": [
+                    {
+                        "id": "sub-weekly",
+                        "productId": "com.example.pro.weekly",
+                        "period": "ONE_WEEK",
+                        "reviewScreenshot": {
+                            "source": str(path),
+                            "expectedSelectedPlan": "weekly",
+                        },
+                    }
+                ],
+            }
+            result = cli.validate_submission_config(config)
+        self.assertTrue(result["ok"])
+        self.assertFalse(any(issue["field"].endswith(".dimensions") for issue in result["issues"]))
 
     def test_verify_build_assets_accepts_ios_archive_with_assets_car(self):
         cli = load_cli()
@@ -798,6 +857,17 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertTrue(price_body["data"]["attributes"]["preserveCurrentPrice"])
         self.assertEqual(offer_body["data"]["type"], "subscriptionIntroductoryOffers")
         self.assertEqual(offer_body["data"]["attributes"]["offerMode"], "FREE_TRIAL")
+
+    def test_subscription_availability_body_uses_available_territories_relationship(self):
+        cli = load_cli()
+        body = cli.build_subscription_availability_body("sub-123", ["USA", "AUS"], True)
+        self.assertEqual(body["data"]["type"], "subscriptionAvailabilities")
+        self.assertTrue(body["data"]["attributes"]["availableInNewTerritories"])
+        self.assertEqual(body["data"]["relationships"]["subscription"]["data"]["id"], "sub-123")
+        self.assertEqual(
+            body["data"]["relationships"]["availableTerritories"]["data"],
+            [{"type": "territories", "id": "USA"}, {"type": "territories", "id": "AUS"}],
+        )
 
     def test_pricing_research_warns_when_stale(self):
         cli = load_cli()

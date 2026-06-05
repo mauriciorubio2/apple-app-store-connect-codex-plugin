@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.4] - 2026-06-05
+
+- Added subscription availability validation, live readback, dry-run planning, and `configure-subscription-availability` support so product sale territories are verified separately from prices and introductory offers.
+- Added `upload-subscription-review-screenshots` for subscription App Review screenshot reservations, uploads, replacement, commits, and processing polls.
+- Added macOS desktop-shape checks for subscription App Review screenshots so `MAC_OS` submissions fail when App Store Connect still has phone-sized portrait paywall evidence.
+
 ## [1.14.3] - 2026-06-05
 
 - Accepted RevenueCat v2 `items` project-list payloads and Codex-rendered text project lists as valid preflight proof after OAuth reauthorization.

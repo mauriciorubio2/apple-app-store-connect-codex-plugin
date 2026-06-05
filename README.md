@@ -23,9 +23,9 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Guide iOS app icon selection with five distinct, App Store-safe design options before replacing bundled icon assets.
 - Upload screenshots through `appScreenshotSets` and `appScreenshots` asset reservations.
 - Set an app to $0/free download and make it available in all App Store territories after an explicit dry-run/approval step.
-- Plan and apply subscription product prices and introductory offers when App Store Connect price point IDs are supplied.
+- Plan and apply subscription product prices, introductory offers, and separate subscription product availability.
 - Detect first-time IAP/subscription products left in `READY_TO_SUBMIT` and require selected-build plus App Store Connect website selection evidence before review readiness.
-- Verify subscription App Review screenshots from App Store Connect, including processed state, non-black pixel checks, and distinct plan-specific screenshots for weekly/monthly/yearly products.
+- Upload and verify subscription App Review screenshots from App Store Connect, including processed state, non-black pixel checks, macOS desktop-shape checks, and distinct plan-specific screenshots for weekly/monthly/yearly products.
 - Check whether subscription pricing research is stale and prompt Codex to refresh weekly/monthly/yearly benchmarks every six months.
 - Default subscription launches to weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` Pro plans, each with a 14-day free trial unless a builder records an override.
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
@@ -62,6 +62,8 @@ The workflow is based on Apple's current App Store Connect API, App Store Connec
 - [Auto-renewable subscriptions](https://developer.apple.com/app-store/subscriptions/)
 - [Manage pricing for auto-renewable subscriptions](https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/)
 - [Set up introductory offers for auto-renewable subscriptions](https://developer.apple.com/help/app-store-connect/manage-subscriptions/set-up-introductory-offers-for-auto-renewable-subscriptions/)
+- [Subscription availability API](https://developer.apple.com/documentation/appstoreconnectapi/subscription-availability)
+- [Subscription App Store Review screenshots API](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-subscriptionappstorereviewscreenshots)
 - [Product page optimization](https://developer.apple.com/app-store/product-page-optimization/)
 - [Requesting App Store reviews](https://developer.apple.com/documentation/storekit/requesting_app_store_reviews/)
 - [RevenueCat MCP Server](https://www.revenuecat.com/docs/tools/mcp)
@@ -150,7 +152,7 @@ For apps with auto-renewable subscriptions, validation expects the App Store des
 
 For an app's first IAP or subscription review, Apple may require the products to be selected with the new app version inside `appstoreconnect.apple.com`. If the products remain `READY_TO_SUBMIT`, upload and select a processed build first, then select the products in the app version's In-App Purchases and Subscriptions section. Apple's public `subscriptionSubmissions` API can reject this first-time case with `FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION`, so the plugin validates local evidence fields instead of treating the API failure as a credential issue.
 
-For subscription App Review screenshots, use one clear image per plan when the paywall has weekly, monthly, and yearly choices. The weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason. Before calling a submission ready, run:
+For subscription App Review screenshots, use one clear image per plan when the paywall has weekly, monthly, and yearly choices. The weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason. For macOS submissions, set `subscriptionReviewScreenshots.requiredPlatform` to `MAC_OS` and use desktop-shaped Mac paywall screenshots, not phone-sized portrait screenshots. Before calling a submission ready, run:
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-review-screenshots \
@@ -158,7 +160,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-r
   --download-dir build/app-store/subscription-review-readback
 ```
 
-This readback checks App Store Connect's stored assets for missing images, incomplete processing, suspiciously small files, mostly black screenshots, and identical screenshots reused across different selected-plan expectations.
+This readback checks App Store Connect's stored assets for missing images, incomplete processing, suspiciously small files, mostly black screenshots, Mac submissions that still have portrait phone screenshots, and identical screenshots reused across different selected-plan expectations.
 
 Apply metadata after approval:
 
@@ -203,7 +205,36 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscriptio
   --yes
 ```
 
-`configure-free-download` handles only the app download price. `configure-subscription-pricing` handles subscription product prices and introductory offers. They are intentionally separate because App Store Connect models them separately.
+Verify and apply subscription product availability separately from prices and trials:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-availability \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-availability \
+  --config appstore-submission.json
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscription-availability \
+  --config appstore-submission.json \
+  --yes
+```
+
+Upload subscription App Review screenshots after rendering plan-specific review assets:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-subscription-review-screenshots \
+  --config appstore-submission.json \
+  --replace-existing \
+  --wait 300
+
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-subscription-review-screenshots \
+  --config appstore-submission.json \
+  --replace-existing \
+  --wait 300 \
+  --yes
+```
+
+`configure-free-download` handles only the app download price. `configure-subscription-pricing` handles subscription product prices and introductory offers. `configure-subscription-availability` handles the separate product availability object. They are intentionally separate because App Store Connect models them separately.
 
 `plan-growth-strategy` also checks `pricingResearch`. If `lastReviewedOn` is missing or older than the configured six-month interval, Codex should refresh current pricing research before finalizing weekly, monthly, or yearly plan prices. The default cadence set is weekly + monthly + yearly, with benchmark anchors as starting points rather than universal truth: weekly around `$4.99` for short-term/event intent, monthly around `$9.99` as the main comparison plan, and yearly around `$29.99` as a clear best-value anchor when the discount is real.
 
@@ -329,7 +360,7 @@ Default paywalls should use `Start 14-day free trial` as the primary CTA and sho
 
 First-time IAP/subscription products need extra release evidence when they are still `READY_TO_SUBMIT`. Upload and select the processed build, select the products with the app version in App Store Connect's website UI when Apple requires it, and record the confirmation in `firstTimeSubscriptionSubmission`. Do not call the release ready while products are still waiting for first review without that selected-version evidence.
 
-Subscription review screenshots are also release evidence. Record each product's `expectedSelectedPlan`, screenshot ID, checksum, and processed state. The default is `allowSharedReviewScreenshot: false`, so duplicate weekly/monthly/yearly screenshots are treated as blockers unless a shared screenshot is intentional and documented.
+Subscription review screenshots are also release evidence. Record each product's `expectedSelectedPlan`, screenshot ID, checksum, processed state, and platform expectation. The default is `allowSharedReviewScreenshot: false`, so duplicate weekly/monthly/yearly screenshots are treated as blockers unless a shared screenshot is intentional and documented. For Mac releases, `MAC_OS` review screenshots should be landscape desktop screenshots.
 
 For review prompts, the plugin validates that `requestReview` is not tied to launch, onboarding, paywall, purchase, cancellation, error, permission, or direct "rate us" button contexts. Use a manual App Store write-review link for explicit user-initiated review actions.
 

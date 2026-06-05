@@ -161,6 +161,29 @@ TOOLS = [
         },
     },
     {
+        "name": "asc_configure_subscription_availability",
+        "description": "Make subscription products available in the configured App Store territories. Requires confirm=true.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "configPath": {"type": "string"},
+                "confirm": {"type": "boolean", "default": False},
+            },
+            "required": ["configPath"],
+        },
+    },
+    {
+        "name": "asc_verify_subscription_availability",
+        "description": "Read subscription availability from App Store Connect and compare it with the config target territories.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "configPath": {"type": "string"},
+            },
+            "required": ["configPath"],
+        },
+    },
+    {
         "name": "asc_list_subscription_price_points",
         "description": "List App Store Connect price points for a subscription, optionally filtered by territory.",
         "inputSchema": {
@@ -231,6 +254,20 @@ TOOLS = [
                     "type": "string",
                     "description": "Optional directory for rendered App Store Connect screenshots used by the pixel check.",
                 },
+            },
+            "required": ["configPath"],
+        },
+    },
+    {
+        "name": "asc_upload_subscription_review_screenshots",
+        "description": "Upload subscription App Review screenshots from the config. Requires confirm=true; replaceExisting must be explicit before deleting current product screenshots.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "configPath": {"type": "string"},
+                "replaceExisting": {"type": "boolean", "default": False},
+                "waitSeconds": {"type": "integer", "default": 0},
+                "confirm": {"type": "boolean", "default": False},
             },
             "required": ["configPath"],
         },
@@ -397,6 +434,13 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if arguments.get("confirm"):
             command.append("--yes")
         text = run_command(command)
+    elif name == "asc_configure_subscription_availability":
+        command = ["python3", str(CLI), "configure-subscription-availability", "--config", arguments["configPath"]]
+        if arguments.get("confirm"):
+            command.append("--yes")
+        text = run_command(command)
+    elif name == "asc_verify_subscription_availability":
+        text = run_command(["python3", str(CLI), "verify-subscription-availability", "--config", arguments["configPath"]])
     elif name == "asc_list_subscription_price_points":
         command = [
             "python3",
@@ -463,6 +507,21 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if arguments.get("downloadDir"):
             command += ["--download-dir", arguments["downloadDir"]]
         text = run_command(command)
+    elif name == "asc_upload_subscription_review_screenshots":
+        command = [
+            "python3",
+            str(CLI),
+            "upload-subscription-review-screenshots",
+            "--config",
+            arguments["configPath"],
+            "--wait",
+            str(arguments.get("waitSeconds", 0)),
+        ]
+        if arguments.get("replaceExisting"):
+            command.append("--replace-existing")
+        if arguments.get("confirm"):
+            command.append("--yes")
+        text = run_command(command)
     elif name == "asc_verify_build_assets":
         command = ["python3", str(CLI), "verify-build-assets", "--path", arguments["path"]]
         if arguments.get("expectBundleId"):
@@ -485,7 +544,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.3"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.4"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

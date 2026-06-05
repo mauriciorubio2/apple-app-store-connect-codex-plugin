@@ -297,6 +297,9 @@
         "PATCH /v2/inAppPurchases/{id}",
         "POST /v1/subscriptions",
         "PATCH /v1/subscriptions/{id}",
+        "GET /v1/subscriptions/{id}/relationships/subscriptionAvailability",
+        "GET /v1/subscriptionAvailabilities/{id}/relationships/availableTerritories",
+        "POST /v1/subscriptionAvailabilities",
         "GET /v1/subscriptions/{id}/appStoreReviewScreenshot",
         "POST /v1/inAppPurchaseLocalizations",
         "POST /v1/subscriptionLocalizations",
@@ -319,14 +322,15 @@
         "subscription price points",
         "base territory subscription prices",
         "14-day free trial introductory offers",
-        "availability",
+        "subscription availability",
         "review screenshots",
         "review screenshot processed-state readback",
         "review screenshot black-screen checks",
+        "macOS desktop review screenshot shape checks",
         "plan-specific selected screenshot evidence",
         "submission"
       ],
-      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Apple's public subscription submission API can reject the first-time case with FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION, so the products may need to be selected in appstoreconnect.apple.com with the uploaded app-version build before review submission. The plugin validates selected-build, UI-selection evidence, and subscription review screenshot readback before calling a release ready. Screenshot copy should make paid or subscription-only features unmistakable. For weekly/monthly/yearly paywalls, each product should have a visible processed App Review screenshot with the matching plan selected unless a shared screenshot is intentionally documented. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; weekly $4.99, monthly $9.99, and yearly $29.99 are the default plan prices, each with a 14-day free trial unless the builder records an override. Yearly should be a real best-value anchor, and weekly should reflect short-horizon or event-driven intent."
+      "notes": "First-time IAPs and subscriptions are commonly submitted with a new app version. Apple's public subscription submission API can reject the first-time case with FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION, so the products may need to be selected in appstoreconnect.apple.com with the uploaded app-version build before review submission. The plugin validates selected-build, UI-selection evidence, subscription availability, and subscription review screenshot readback before calling a release ready. Screenshot copy should make paid or subscription-only features unmistakable. For weekly/monthly/yearly paywalls, each product should have a visible processed App Review screenshot with the matching plan selected unless a shared screenshot is intentionally documented. For macOS submissions, subscription App Review screenshots must show desktop-shaped Mac app evidence, not phone-sized portrait paywalls. Subscription product prices and introductory offers are separate from product availability; verify subscriptionAvailabilities independently. Subscription product prices are separate from app download price. Pricing research should be refreshed every six months; weekly $4.99, monthly $9.99, and yearly $29.99 are the default plan prices, each with a 14-day free trial unless the builder records an override. Yearly should be a real best-value anchor, and weekly should reflect short-horizon or event-driven intent."
     },
     {
       "group": "Onboarding, paywall, and review prompts",

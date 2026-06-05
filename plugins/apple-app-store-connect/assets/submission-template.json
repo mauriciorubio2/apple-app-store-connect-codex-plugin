@@ -309,6 +309,29 @@
     ],
     "notes": "Use App Store Connect price point IDs from list-subscription-price-points. Keep subscription prices separate from the app download price."
   },
+  "subscriptionAvailability": {
+    "allAppStoreTerritories": true,
+    "availableInNewTerritories": true,
+    "customTerritoryReason": "",
+    "products": [
+      {
+        "subscriptionId": "subscription-weekly-id",
+        "productId": "com.example.product.pro.weekly",
+        "expectedTerritories": "all App Store territories"
+      },
+      {
+        "subscriptionId": "subscription-monthly-id",
+        "productId": "com.example.product.pro.monthly",
+        "expectedTerritories": "all App Store territories"
+      },
+      {
+        "subscriptionId": "subscription-yearly-id",
+        "productId": "com.example.product.pro.yearly",
+        "expectedTerritories": "all App Store territories"
+      }
+    ],
+    "notes": "Subscription availability is separate from subscription prices and introductory offers. Verify subscriptionAvailabilities before review; pricing rows in every territory do not by themselves make a product available in those territories."
+  },
   "onboarding": {
     "collectsPreferences": true,
     "paywallTiming": "afterFirstPersonalizedValue",
@@ -509,7 +532,8 @@
     "allowSharedReviewScreenshot": false,
     "blackScreenCheckRequired": true,
     "planSpecificSelectionRequired": true,
+    "requiredPlatform": "",
     "verificationCommand": "verify-subscription-review-screenshots --config appstore-submission.json --download-dir build/app-store/subscription-review-readback",
-    "notes": "For weekly/monthly/yearly subscriptions, each App Review screenshot should show the matching plan selected unless allowSharedReviewScreenshot is deliberately set with a reason."
+    "notes": "For weekly/monthly/yearly subscriptions, each App Review screenshot should show the matching plan selected unless allowSharedReviewScreenshot is deliberately set with a reason. For macOS submissions, set requiredPlatform to MAC_OS and use desktop-shaped review screenshots, not phone-sized portrait paywalls."
   }
 }

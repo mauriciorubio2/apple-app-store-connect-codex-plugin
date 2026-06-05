@@ -149,6 +149,8 @@ FIRST_TIME_SUBSCRIPTION_OK_FLAGS = {
 SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_BYTES = 25_000
 SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_LUMINANCE = 20
 SUBSCRIPTION_REVIEW_SCREENSHOT_MAX_DARK_PIXEL_RATIO = 0.90
+SUBSCRIPTION_REVIEW_SCREENSHOT_MACOS_MIN_WIDTH = 1024
+SUBSCRIPTION_REVIEW_SCREENSHOT_MACOS_MIN_HEIGHT = 768
 
 SCREENSHOT_MIN = 1
 SCREENSHOT_MAX = 10
@@ -1277,6 +1279,77 @@ def subscription_intro_offer_entries(config: dict[str, Any]) -> list[dict[str, A
     return entries
 
 
+def subscription_availability_entries(config: dict[str, Any]) -> list[dict[str, Any]]:
+    availability = config.get("subscriptionAvailability") or {}
+    entries: list[dict[str, Any]] = []
+    by_key: dict[str, dict[str, Any]] = {}
+
+    def item_key(item: dict[str, Any]) -> str:
+        return str(
+            item.get("subscriptionId")
+            or item.get("appleProductId")
+            or item.get("id")
+            or item.get("productId")
+            or ""
+        )
+
+    def add(item: dict[str, Any]) -> None:
+        key = item_key(item)
+        if not key:
+            return
+        normalized = dict(item)
+        if normalized.get("appleProductId") and not normalized.get("subscriptionId"):
+            normalized["subscriptionId"] = normalized.get("appleProductId")
+        existing = by_key.get(key)
+        if existing:
+            existing.update({k: v for k, v in normalized.items() if v not in (None, "")})
+            return
+        by_key[key] = normalized
+        entries.append(normalized)
+
+    for item in as_list(availability.get("products")):
+        if isinstance(item, dict):
+            add(item)
+    for item in subscription_pricing_entries(config):
+        if isinstance(item, dict):
+            add(item)
+    for item in as_list(config.get("subscriptions")):
+        if isinstance(item, dict):
+            add(item)
+    for item in as_list(config.get("products")):
+        if isinstance(item, dict) and (item.get("subscriptionId") or item.get("appleProductId")):
+            add(item)
+    return entries
+
+
+def subscription_availability_policy(config: dict[str, Any]) -> dict[str, Any]:
+    availability = config.get("subscriptionAvailability")
+    if not isinstance(availability, dict):
+        availability = {}
+    pricing = config.get("subscriptionPricing") or {}
+    return {
+        "allAppStoreTerritories": availability.get("allAppStoreTerritories")
+        if "allAppStoreTerritories" in availability
+        else pricing.get("allAppStoreTerritories"),
+        "availableInNewTerritories": availability.get("availableInNewTerritories", True),
+        "territories": availability.get("territories")
+        or availability.get("territoryIds")
+        or availability.get("targetTerritories")
+        or pricing.get("targetTerritories"),
+        "customTerritoryReason": availability.get("customTerritoryReason")
+        or pricing.get("customTerritoryReason")
+        or "",
+    }
+
+
+def wants_all_subscription_territories(config: dict[str, Any]) -> bool:
+    policy = subscription_availability_policy(config)
+    if policy.get("allAppStoreTerritories") is True:
+        return True
+    value = str(policy.get("territories") or "").strip().lower()
+    return value in {"all", "all app store territories", "all_territories"}
+
+
 def subscription_id_by_product(config: dict[str, Any]) -> dict[str, str]:
     result = {}
     for sub in as_list(config.get("subscriptions")):
@@ -1487,6 +1560,58 @@ def add_subscription_review_screenshot_pixel_issues(
         )
 
 
+def config_platform(config: dict[str, Any]) -> str:
+    return str((config.get("app") or {}).get("platform") or config.get("platform") or "").upper()
+
+
+def required_subscription_review_screenshot_platform(
+    config: dict[str, Any], entry: dict[str, Any] | None = None
+) -> str:
+    review_policy = config.get("subscriptionReviewScreenshots") or {}
+    value = ""
+    if entry:
+        value = str(entry.get("platform") or entry.get("requiredPlatform") or "").upper()
+    if not value:
+        value = str(review_policy.get("requiredPlatform") or review_policy.get("platform") or "").upper()
+    if not value:
+        value = config_platform(config)
+    if value in {"MACOS", "MAC", "APP_DESKTOP", "DESKTOP"}:
+        return "MAC_OS"
+    return value
+
+
+def add_subscription_review_screenshot_platform_issues(
+    issues: list[dict[str, str]],
+    field: str,
+    width: int | None,
+    height: int | None,
+    required_platform: str,
+) -> None:
+    if required_platform != "MAC_OS":
+        return
+    if not width or not height:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": field + ".dimensions",
+                "message": "macOS subscription App Review screenshots should be checked for desktop dimensions before review.",
+            }
+        )
+        return
+    if (
+        width < SUBSCRIPTION_REVIEW_SCREENSHOT_MACOS_MIN_WIDTH
+        or height < SUBSCRIPTION_REVIEW_SCREENSHOT_MACOS_MIN_HEIGHT
+        or width < height
+    ):
+        issues.append(
+            {
+                "severity": "error",
+                "field": field + ".dimensions",
+                "message": "macOS subscription App Review screenshots must show the desktop app, not a phone-sized portrait paywall. Use a landscape desktop screenshot such as 2560x1600.",
+            }
+        )
+
+
 def subscription_review_screenshot_duplicate_issues(
     entries: list[dict[str, Any]], allow_shared: bool
 ) -> list[dict[str, str]]:
@@ -1556,10 +1681,18 @@ def validate_subscription_review_screenshot_evidence(
                     "message": "Subscription App Review screenshot file is suspiciously small; black placeholder images often fail App Review.",
                 }
             )
+        summary = local_screenshot_pixel_summary(source_path)
         add_subscription_review_screenshot_pixel_issues(
             issues,
             f"subscriptions.reviewScreenshot.products[{index}].source",
-            local_screenshot_pixel_summary(source_path),
+            summary,
+        )
+        add_subscription_review_screenshot_platform_issues(
+            issues,
+            f"subscriptions.reviewScreenshot.products[{index}].source",
+            int(summary.get("width") or 0) or None,
+            int(summary.get("height") or 0) or None,
+            required_subscription_review_screenshot_platform(config, entry),
         )
 
 
@@ -2062,6 +2195,50 @@ def validate_subscription_pricing_strategy(
                     "severity": "warning",
                     "field": field + ".numberOfPeriods",
                     "message": "The default 14-day free trial uses one period. Set customIntroOfferReason if multiple trial periods are intentional.",
+                }
+            )
+
+
+def validate_subscription_availability_strategy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    has_subscription_strategy = bool(as_list(config.get("subscriptions")) or config.get("subscriptionPricing"))
+    if not has_subscription_strategy:
+        return
+    availability = config.get("subscriptionAvailability") or {}
+    policy = subscription_availability_policy(config)
+    entries = subscription_availability_entries(config)
+    custom_reason = str(policy.get("customTerritoryReason") or "").strip()
+    if not availability and not custom_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionAvailability",
+                "message": "Subscription availability is separate from subscription prices. Add subscriptionAvailability with allAppStoreTerritories=true, or record customTerritoryReason when intentionally limiting sale territories.",
+            }
+        )
+        return
+    if not entries:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionAvailability.products",
+                "message": "Record the subscription products whose territory availability must be verified before review.",
+            }
+        )
+    if not wants_all_subscription_territories(config) and not custom_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "subscriptionAvailability.allAppStoreTerritories",
+                "message": "Most subscription apps should make each product available in every App Store territory with configured pricing. Add customTerritoryReason when a limited territory launch is intentional.",
+            }
+        )
+    for index, entry in enumerate(entries):
+        if not (entry.get("subscriptionId") or entry.get("id") or entry.get("appleProductId") or entry.get("productId")):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"subscriptionAvailability.products[{index}].subscriptionId",
+                    "message": "Subscription availability verification requires a subscriptionId/appleProductId or productId mapping.",
                 }
             )
 
@@ -2828,6 +3005,7 @@ def validate_first_time_subscription_submission(config: dict[str, Any], issues: 
 def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     validate_subscription_pricing_strategy(config, issues)
+    validate_subscription_availability_strategy(config, issues)
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)
     validate_platform_release_strategy(config, issues)
@@ -2837,6 +3015,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     validate_review_prompt_policy(config, issues)
     pricing_entries = subscription_pricing_entries(config)
     intro_offers = subscription_intro_offer_entries(config)
+    availability_entries = subscription_availability_entries(config)
     return {
         "ok": not [issue for issue in issues if issue["severity"] == "error"],
         "issues": issues,
@@ -2883,6 +3062,19 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
                 or offer.get("preserveCurrentIntroductoryOffer"),
             }
             for offer in intro_offers
+        ],
+        "plannedAvailabilityActions": [
+            {
+                "action": "POST",
+                "resource": "subscriptionAvailabilities",
+                "subscriptionId": entry.get("subscriptionId") or entry.get("id") or entry.get("appleProductId"),
+                "productId": entry.get("productId"),
+                "target": "all App Store territories"
+                if wants_all_subscription_territories(config)
+                else subscription_availability_policy(config).get("territories"),
+                "availableInNewTerritories": subscription_availability_policy(config).get("availableInNewTerritories"),
+            }
+            for entry in availability_entries
         ],
     }
 
@@ -2954,6 +3146,185 @@ def configure_subscription_pricing(
         )
         results.append({"resource": "subscriptionIntroductoryOffers", "id": response.get("data", {}).get("id")})
     return {"dryRun": False, "results": results}
+
+
+def build_subscription_availability_body(
+    subscription_id: str,
+    territory_ids: list[str],
+    available_in_new_territories: bool = True,
+) -> dict[str, Any]:
+    return {
+        "data": {
+            "type": "subscriptionAvailabilities",
+            "attributes": {"availableInNewTerritories": available_in_new_territories},
+            "relationships": {
+                "subscription": relationship("subscriptions", subscription_id),
+                "availableTerritories": {
+                    "data": [{"type": "territories", "id": territory_id} for territory_id in territory_ids]
+                },
+            },
+        }
+    }
+
+
+def list_all_territory_ids(client: AppStoreConnectClient) -> list[str]:
+    response = client.get("/v1/territories", {"limit": "200"})
+    return sorted(item["id"] for item in response.get("data", []) if item.get("id"))
+
+
+def target_subscription_territory_ids(config: dict[str, Any], client: AppStoreConnectClient) -> list[str]:
+    policy = subscription_availability_policy(config)
+    territories = policy.get("territories")
+    if isinstance(territories, str):
+        if territories.strip().lower() in {"all", "all app store territories", "all_territories"}:
+            return list_all_territory_ids(client)
+        return sorted(part.strip().upper() for part in territories.split(",") if part.strip())
+    if isinstance(territories, list):
+        return sorted(str(item).strip().upper() for item in territories if str(item).strip())
+    if wants_all_subscription_territories(config):
+        return list_all_territory_ids(client)
+    return []
+
+
+def read_subscription_availability(client: AppStoreConnectClient, subscription_id: str) -> dict[str, Any]:
+    link = client.get(f"/v1/subscriptions/{subscription_id}/relationships/subscriptionAvailability")
+    availability_id = (link.get("data") or {}).get("id")
+    if not availability_id:
+        return {
+            "subscriptionId": subscription_id,
+            "availabilityId": None,
+            "availableInNewTerritories": None,
+            "territoryIds": [],
+            "territoryCount": 0,
+        }
+    availability = client.get(f"/v1/subscriptionAvailabilities/{availability_id}")
+    territories = client.get(
+        f"/v1/subscriptionAvailabilities/{availability_id}/relationships/availableTerritories",
+        {"limit": "200"},
+    )
+    territory_ids = sorted(item["id"] for item in territories.get("data", []) if item.get("id"))
+    return {
+        "subscriptionId": subscription_id,
+        "availabilityId": availability_id,
+        "availableInNewTerritories": (availability.get("data") or {}).get("attributes", {}).get(
+            "availableInNewTerritories"
+        ),
+        "territoryIds": territory_ids,
+        "territoryCount": len(territory_ids),
+    }
+
+
+def verify_subscription_availability(config: dict[str, Any], client: AppStoreConnectClient) -> dict[str, Any]:
+    product_map = subscription_id_by_product(config)
+    entries = subscription_availability_entries(config)
+    target_ids = target_subscription_territory_ids(config, client)
+    issues: list[dict[str, str]] = []
+    products: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries):
+        subscription_id = resolve_subscription_id(entry, product_map)
+        field = f"subscriptionAvailability.products[{index}]"
+        if not subscription_id:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".subscriptionId",
+                    "message": "A subscriptionId or productId mapping is required to read subscription availability.",
+                }
+            )
+            continue
+        live = read_subscription_availability(client, str(subscription_id))
+        live_ids = set(live["territoryIds"])
+        missing = sorted(set(target_ids) - live_ids) if target_ids else []
+        extra = sorted(live_ids - set(target_ids)) if target_ids else []
+        product = {
+            "subscriptionId": str(subscription_id),
+            "productId": entry.get("productId"),
+            "availabilityId": live.get("availabilityId"),
+            "availableInNewTerritories": live.get("availableInNewTerritories"),
+            "territoryCount": live.get("territoryCount"),
+            "targetTerritoryCount": len(target_ids) if target_ids else None,
+            "missingTerritoryCount": len(missing),
+            "extraTerritoryCount": len(extra),
+            "territoriesSample": live["territoryIds"][:20],
+            "missingTerritoriesSample": missing[:20],
+        }
+        products.append(product)
+        if target_ids and missing:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".availableTerritories",
+                    "message": f"Subscription is available in {live['territoryCount']} territory/territories, but {len(target_ids)} are expected. Pricing rows do not make a product available; update subscriptionAvailability.",
+                }
+            )
+        if wants_all_subscription_territories(config) and live.get("availableInNewTerritories") is not True:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field + ".availableInNewTerritories",
+                    "message": "For all-territory subscription launches, enable availableInNewTerritories so new App Store territories are included automatically.",
+                }
+            )
+    errors = [issue for issue in issues if issue["severity"] == "error"]
+    warnings = [issue for issue in issues if issue["severity"] == "warning"]
+    return {
+        "ok": not errors,
+        "target": "all App Store territories" if wants_all_subscription_territories(config) else target_ids,
+        "targetTerritoryCount": len(target_ids) if target_ids else None,
+        "productCount": len(entries),
+        "errorCount": len(errors),
+        "warningCount": len(warnings),
+        "issues": issues,
+        "products": products,
+    }
+
+
+def configure_subscription_availability(
+    config: dict[str, Any], client: AppStoreConnectClient | None, yes: bool
+) -> dict[str, Any]:
+    plan = plan_growth_strategy(config)
+    entries = subscription_availability_entries(config)
+    policy = subscription_availability_policy(config)
+    if not yes:
+        return {
+            "dryRun": True,
+            "plannedAvailabilityActions": plan.get("plannedAvailabilityActions", []),
+            "target": "all App Store territories" if wants_all_subscription_territories(config) else policy.get("territories"),
+            "productCount": len(entries),
+        }
+    errors = [issue for issue in plan["issues"] if issue["severity"] == "error"]
+    if errors:
+        raise AppStoreConnectError("Growth strategy validation failed; fix errors before applying subscription availability.")
+    if client is None:
+        raise AppStoreConnectError("An App Store Connect client is required when configuring subscription availability.")
+    territory_ids = target_subscription_territory_ids(config, client)
+    if not territory_ids:
+        raise AppStoreConnectError("No target subscription availability territories were resolved.")
+    product_map = subscription_id_by_product(config)
+    results: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries):
+        subscription_id = resolve_subscription_id(entry, product_map)
+        if not subscription_id:
+            raise AppStoreConnectError(
+                f"subscriptionAvailability.products[{index}] requires subscriptionId or productId."
+            )
+        response = client.post(
+            "/v1/subscriptionAvailabilities",
+            build_subscription_availability_body(
+                str(subscription_id),
+                territory_ids,
+                bool(policy.get("availableInNewTerritories", True)),
+            ),
+        )
+        results.append(
+            {
+                "resource": "subscriptionAvailabilities",
+                "subscriptionId": str(subscription_id),
+                "availabilityId": response.get("data", {}).get("id"),
+                "territoryCount": len(territory_ids),
+            }
+        )
+    return {"dryRun": False, "results": results, "verification": verify_subscription_availability(config, client)}
 
 
 def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -3170,6 +3541,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
             )
 
     validate_subscription_pricing_strategy(config, issues)
+    validate_subscription_availability_strategy(config, issues)
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)
     validate_platform_release_strategy(config, issues)
@@ -3396,6 +3768,7 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
         growth_plan = plan_growth_strategy(config)
         price_actions = growth_plan["plannedPricingActions"]
         intro_actions = growth_plan["plannedIntroOfferActions"]
+        availability_actions = growth_plan.get("plannedAvailabilityActions", [])
         mutating_price_actions = [action for action in price_actions if action.get("action") != "NO_OP"]
         mutating_intro_actions = [action for action in intro_actions if action.get("action") != "NO_OP"]
         actions.append(
@@ -3408,6 +3781,29 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "preservedIntroOfferCount": len(intro_actions) - len(mutating_intro_actions),
                 "freeProAccessTarget": growth_plan["freeProAccessModel"]["targetFreeAccessPercent"],
                 "tool": "configure-subscription-pricing",
+            }
+        )
+        if availability_actions:
+            actions.append(
+                {
+                    "action": "POST",
+                    "resource": "subscriptionAvailabilities",
+                    "availabilityActionCount": len(availability_actions),
+                    "target": "all App Store territories"
+                    if wants_all_subscription_territories(config)
+                    else subscription_availability_policy(config).get("territories"),
+                    "tool": "configure-subscription-availability",
+                }
+            )
+    review_entries = subscription_review_screenshot_entries(config)
+    if review_entries:
+        actions.append(
+            {
+                "action": "POST",
+                "resource": "subscriptionAppStoreReviewScreenshots",
+                "fileCount": len(review_entries),
+                "requiredPlatform": required_subscription_review_screenshot_platform(config),
+                "tool": "upload-subscription-review-screenshots",
             }
         )
     for group in as_list(config.get("screenshots")):
@@ -3697,6 +4093,162 @@ def upload_screenshots(
     return {"dryRun": False, "results": results}
 
 
+def upload_subscription_review_screenshot_file(
+    client: AppStoreConnectClient,
+    subscription_id: str,
+    file_path: Path,
+    replace_existing: bool = False,
+    wait_seconds: int = 0,
+) -> dict[str, Any]:
+    file_path = file_path.expanduser()
+    if replace_existing:
+        existing = client.get(f"/v1/subscriptions/{subscription_id}/appStoreReviewScreenshot")
+        existing_id = (existing.get("data") or {}).get("id")
+        if existing_id:
+            client.delete(f"/v1/subscriptionAppStoreReviewScreenshots/{existing_id}")
+    reservation = client.post(
+        "/v1/subscriptionAppStoreReviewScreenshots",
+        json_api_body(
+            "subscriptionAppStoreReviewScreenshots",
+            {"fileSize": file_path.stat().st_size, "fileName": file_path.name},
+            {"subscription": relationship("subscriptions", subscription_id)},
+        ),
+    )
+    screenshot_id = reservation["data"]["id"]
+    upload_operations(file_path, reservation["data"]["attributes"]["uploadOperations"])
+    checksum = file_hash(file_path, "md5")
+    response = client.patch(
+        f"/v1/subscriptionAppStoreReviewScreenshots/{screenshot_id}",
+        json_api_body(
+            "subscriptionAppStoreReviewScreenshots",
+            {"uploaded": True, "sourceFileChecksum": checksum},
+            resource_id=screenshot_id,
+        ),
+    )
+    final = response
+    if wait_seconds > 0:
+        deadline = time.time() + wait_seconds
+        while time.time() < deadline:
+            final = client.get(f"/v1/subscriptionAppStoreReviewScreenshots/{screenshot_id}")
+            state = (
+                (final.get("data") or {})
+                .get("attributes", {})
+                .get("assetDeliveryState", {})
+                .get("state")
+            )
+            if state in {"COMPLETE", "FAILED"}:
+                break
+            time.sleep(5)
+    attrs = (final.get("data") or {}).get("attributes", {})
+    image_asset = attrs.get("imageAsset") or {}
+    asset_state = attrs.get("assetDeliveryState") or {}
+    return {
+        "subscriptionId": subscription_id,
+        "reviewScreenshotId": screenshot_id,
+        "source": str(file_path),
+        "sourceFileChecksum": checksum,
+        "fileSize": file_path.stat().st_size,
+        "assetDeliveryState": asset_state.get("state"),
+        "errors": asset_state.get("errors"),
+        "warnings": asset_state.get("warnings"),
+        "width": image_asset.get("width"),
+        "height": image_asset.get("height"),
+    }
+
+
+def upload_subscription_review_screenshots(
+    config: dict[str, Any],
+    client: AppStoreConnectClient | None,
+    yes: bool,
+    replace_existing: bool = False,
+    wait_seconds: int = 0,
+) -> dict[str, Any]:
+    entries = subscription_review_screenshot_entries(config)
+    dry_run_files: list[dict[str, Any]] = []
+    local_issues: list[dict[str, str]] = []
+    validate_subscription_review_screenshot_evidence(config, local_issues)
+    product_map = subscription_id_by_product(config)
+    for index, entry in enumerate(entries):
+        source = entry.get("source") or entry.get("file")
+        subscription_id = resolve_subscription_id(entry, product_map)
+        file_info: dict[str, Any] = {
+            "subscriptionId": subscription_id,
+            "productId": entry.get("productId"),
+            "expectedSelectedPlan": entry.get("expectedSelectedPlan") or infer_subscription_plan_label(entry),
+            "source": source,
+            "replaceExisting": replace_existing,
+        }
+        if source:
+            path = Path(str(source)).expanduser()
+            file_info["fileExists"] = path.exists()
+            if path.exists():
+                summary = local_screenshot_pixel_summary(path)
+                file_info.update(
+                    {
+                        "fileSize": path.stat().st_size,
+                        "sourceFileChecksum": file_hash(path, "md5"),
+                        "width": summary.get("width"),
+                        "height": summary.get("height"),
+                    }
+                )
+            else:
+                local_issues.append(
+                    {
+                        "severity": "error",
+                        "field": f"subscriptions.reviewScreenshot.products[{index}].source",
+                        "message": f"Local subscription review screenshot file not found: {path}",
+                    }
+                )
+        dry_run_files.append(file_info)
+        if not subscription_id:
+            local_issues.append(
+                {
+                    "severity": "error",
+                    "field": f"subscriptions.reviewScreenshot.products[{index}].subscriptionId",
+                    "message": "A subscriptionId or productId mapping is required to upload a review screenshot.",
+                }
+            )
+        if not source:
+            local_issues.append(
+                {
+                    "severity": "error",
+                    "field": f"subscriptions.reviewScreenshot.products[{index}].source",
+                    "message": "A local screenshot source path is required for upload.",
+                }
+            )
+    if not yes:
+        return {
+            "dryRun": True,
+            "replaceExisting": replace_existing,
+            "waitSeconds": wait_seconds,
+            "fileCount": len(entries),
+            "files": dry_run_files,
+            "issues": local_issues,
+            "ok": not [issue for issue in local_issues if issue["severity"] == "error"],
+        }
+    errors = [issue for issue in local_issues if issue["severity"] == "error"]
+    if errors:
+        raise AppStoreConnectError("Local subscription review screenshot validation failed; fix errors before upload.")
+    if client is None:
+        raise AppStoreConnectError("An App Store Connect client is required when uploading subscription review screenshots.")
+    results = []
+    for entry in entries:
+        source = entry.get("source") or entry.get("file")
+        subscription_id = resolve_subscription_id(entry, product_map)
+        if not source or not subscription_id:
+            raise AppStoreConnectError("Each subscription review screenshot upload requires source and subscriptionId.")
+        results.append(
+            upload_subscription_review_screenshot_file(
+                client,
+                str(subscription_id),
+                Path(str(source)),
+                replace_existing=replace_existing,
+                wait_seconds=wait_seconds,
+            )
+        )
+    return {"dryRun": False, "results": results}
+
+
 def apple_image_asset_url(image_asset: dict[str, Any]) -> str | None:
     template_url = image_asset.get("templateUrl") or image_asset.get("url")
     if not template_url:
@@ -3810,6 +4362,13 @@ def verify_subscription_review_screenshots(
                     "message": "App Store Connect screenshot image dimensions are missing or zero.",
                 }
             )
+        add_subscription_review_screenshot_platform_issues(
+            issues,
+            field + ".imageAsset",
+            int(image_asset.get("width") or 0) or None,
+            int(image_asset.get("height") or 0) or None,
+            required_subscription_review_screenshot_platform(config, entry),
+        )
         if int(attrs.get("fileSize") or 0) < SUBSCRIPTION_REVIEW_SCREENSHOT_MIN_BYTES:
             issues.append(
                 {
@@ -4345,6 +4904,19 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_config_argument(sub_price)
     sub_price.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
 
+    sub_availability = sub.add_parser(
+        "configure-subscription-availability",
+        help="Make subscription products available in the configured App Store territories.",
+    )
+    add_common_config_argument(sub_availability)
+    sub_availability.add_argument("--yes", action="store_true", help="Apply changes. Without this flag, prints a dry run.")
+
+    verify_sub_availability = sub.add_parser(
+        "verify-subscription-availability",
+        help="Read subscription availability from App Store Connect and compare it with the config target territories.",
+    )
+    add_common_config_argument(verify_sub_availability)
+
     sub_points = sub.add_parser("list-subscription-price-points", help="List price points for a subscription.")
     sub_points.add_argument("--subscription-id", required=True)
     sub_points.add_argument("--territory", help="Optional App Store territory filter, such as USA.")
@@ -4352,6 +4924,19 @@ def build_parser() -> argparse.ArgumentParser:
     shots = sub.add_parser("upload-screenshots", help="Upload screenshots from the config.")
     add_common_config_argument(shots)
     shots.add_argument("--yes", action="store_true", help="Upload screenshots. Without this flag, prints a dry run.")
+
+    sub_review_upload = sub.add_parser(
+        "upload-subscription-review-screenshots",
+        help="Upload subscription App Review screenshots from the config.",
+    )
+    add_common_config_argument(sub_review_upload)
+    sub_review_upload.add_argument(
+        "--replace-existing",
+        action="store_true",
+        help="Delete the current product review screenshot before uploading the replacement.",
+    )
+    sub_review_upload.add_argument("--wait", type=int, default=0, help="Seconds to poll for screenshot processing.")
+    sub_review_upload.add_argument("--yes", action="store_true", help="Upload screenshots. Without this flag, prints a dry run.")
 
     verify_sub_shots = sub.add_parser(
         "verify-subscription-review-screenshots",
@@ -4478,6 +5063,11 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "configure-subscription-pricing":
             client = AppStoreConnectClient() if args.yes else None
             print_json(configure_subscription_pricing(load_json(args.config), client, args.yes))
+        elif args.command == "configure-subscription-availability":
+            client = AppStoreConnectClient() if args.yes else None
+            print_json(configure_subscription_availability(load_json(args.config), client, args.yes))
+        elif args.command == "verify-subscription-availability":
+            print_json(verify_subscription_availability(load_json(args.config), AppStoreConnectClient()))
         elif args.command == "list-subscription-price-points":
             query = {"include": "territory", "limit": "200"}
             if args.territory:
@@ -4486,6 +5076,17 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "upload-screenshots":
             client = AppStoreConnectClient() if args.yes else None
             print_json(upload_screenshots(load_json(args.config), client, args.yes))
+        elif args.command == "upload-subscription-review-screenshots":
+            client = AppStoreConnectClient() if args.yes else None
+            print_json(
+                upload_subscription_review_screenshots(
+                    load_json(args.config),
+                    client,
+                    args.yes,
+                    replace_existing=args.replace_existing,
+                    wait_seconds=args.wait,
+                )
+            )
         elif args.command == "verify-subscription-review-screenshots":
             print_json(
                 verify_subscription_review_screenshots(
