@@ -155,12 +155,15 @@ For an app's first IAP or subscription review, Apple may require the products to
 For subscription App Review screenshots, use one clear image per plan when the paywall has weekly, monthly, and yearly choices. The weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason. For macOS submissions, set `subscriptionReviewScreenshots.requiredPlatform` to `MAC_OS` and use desktop-shaped Mac paywall screenshots, not phone-sized portrait screenshots. Before calling a submission ready, run:
 
 ```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-status \
+  --config appstore-submission.json
+
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-review-screenshots \
   --config appstore-submission.json \
   --download-dir build/app-store/subscription-review-readback
 ```
 
-This readback checks App Store Connect's stored assets for missing images, incomplete processing, suspiciously small files, mostly black screenshots, Mac submissions that still have portrait phone screenshots, and identical screenshots reused across different selected-plan expectations.
+The status readback flags rejected or developer-action-needed subscription products and localizations. The screenshot readback checks App Store Connect's stored assets for missing images, incomplete processing, suspiciously small files, mostly black screenshots, Mac submissions that still have portrait phone screenshots, and identical screenshots reused across different selected-plan expectations.
 
 Apply metadata after approval:
 
@@ -208,6 +211,9 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-subscriptio
 Verify and apply subscription product availability separately from prices and trials:
 
 ```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-status \
+  --config appstore-submission.json
+
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-availability \
   --config appstore-submission.json
 
@@ -360,7 +366,7 @@ Default paywalls should use `Start 14-day free trial` as the primary CTA and sho
 
 First-time IAP/subscription products need extra release evidence when they are still `READY_TO_SUBMIT`. Upload and select the processed build, select the products with the app version in App Store Connect's website UI when Apple requires it, and record the confirmation in `firstTimeSubscriptionSubmission`. Do not call the release ready while products are still waiting for first review without that selected-version evidence.
 
-Subscription review screenshots are also release evidence. Record each product's `expectedSelectedPlan`, screenshot ID, checksum, processed state, and platform expectation. The default is `allowSharedReviewScreenshot: false`, so duplicate weekly/monthly/yearly screenshots are treated as blockers unless a shared screenshot is intentional and documented. For Mac releases, `MAC_OS` review screenshots should be landscape desktop screenshots.
+Subscription status and review screenshots are also release evidence. Run `verify-subscription-status` to catch products or localizations that are `DEVELOPER_ACTION_NEEDED`, `REJECTED`, or missing metadata. Record each product's `expectedSelectedPlan`, screenshot ID, checksum, processed state, and platform expectation. The default is `allowSharedReviewScreenshot: false`, so duplicate weekly/monthly/yearly screenshots are treated as blockers unless a shared screenshot is intentional and documented. For Mac releases, `MAC_OS` review screenshots should be landscape desktop screenshots.
 
 For review prompts, the plugin validates that `requestReview` is not tied to launch, onboarding, paywall, purchase, cancellation, error, permission, or direct "rate us" button contexts. Use a manual App Store write-review link for explicit user-initiated review actions.
 

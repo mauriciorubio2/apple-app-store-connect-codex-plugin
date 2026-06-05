@@ -184,6 +184,17 @@ TOOLS = [
         },
     },
     {
+        "name": "asc_verify_subscription_status",
+        "description": "Read subscription product and localization states from App Store Connect and flag rejected or developer-action-needed metadata.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "configPath": {"type": "string"},
+            },
+            "required": ["configPath"],
+        },
+    },
+    {
         "name": "asc_list_subscription_price_points",
         "description": "List App Store Connect price points for a subscription, optionally filtered by territory.",
         "inputSchema": {
@@ -441,6 +452,8 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         text = run_command(command)
     elif name == "asc_verify_subscription_availability":
         text = run_command(["python3", str(CLI), "verify-subscription-availability", "--config", arguments["configPath"]])
+    elif name == "asc_verify_subscription_status":
+        text = run_command(["python3", str(CLI), "verify-subscription-status", "--config", arguments["configPath"]])
     elif name == "asc_list_subscription_price_points":
         command = [
             "python3",
@@ -544,7 +557,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.4"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.5"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

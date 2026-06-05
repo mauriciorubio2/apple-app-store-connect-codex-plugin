@@ -276,6 +276,13 @@
     "selectedProductIds": [],
     "notes": "For an app's first IAP or subscription, upload and select a processed build, then select the products with the app version in appstoreconnect.apple.com before submitting for review. Apple's public subscriptionSubmissions API can reject this first-time case with FIRST_SUBSCRIPTION_MUST_BE_SUBMITTED_ON_VERSION."
   },
+  "subscriptionStatus": {
+    "requiredBeforeSubmission": true,
+    "verificationCommand": "verify-subscription-status --config appstore-submission.json",
+    "lastReadbackVerifiedOn": "",
+    "lastReadbackStatus": "",
+    "notes": "Run this before review submission. DEVELOPER_ACTION_NEEDED, REJECTED, or missing subscription localizations are blockers; READY_TO_SUBMIT means first-time products may still need to be selected with the app version."
+  },
   "onboarding": {
     "collectsPreferences": true,
     "paywallTiming": "afterFirstPersonalizedValue",

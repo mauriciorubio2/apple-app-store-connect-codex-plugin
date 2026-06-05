@@ -226,12 +226,15 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-screenshots \
 For subscription App Review screenshots, verify App Store Connect's stored assets before declaring review readiness:
 
 ```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-status \
+  --config appstore-submission.json
+
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-subscription-review-screenshots \
   --config appstore-submission.json \
   --download-dir build/app-store/subscription-review-readback
 ```
 
-Treat missing screenshots, incomplete processing, suspiciously small files, mostly black screenshots, macOS submissions that still have phone-sized portrait screenshots, or identical screenshots reused across different weekly/monthly/yearly plan expectations as blockers. For multi-plan paywalls, the weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason. For macOS submissions, set `subscriptionReviewScreenshots.requiredPlatform` to `MAC_OS` and use desktop-shaped Mac paywall screenshots.
+Treat rejected or developer-action-needed subscription products/localizations, missing screenshots, incomplete processing, suspiciously small files, mostly black screenshots, macOS submissions that still have phone-sized portrait screenshots, or identical screenshots reused across different weekly/monthly/yearly plan expectations as blockers. For multi-plan paywalls, the weekly product screenshot should show weekly selected, monthly should show monthly selected, and yearly should show yearly selected unless `allowSharedReviewScreenshot` is deliberately set with a documented reason. For macOS submissions, set `subscriptionReviewScreenshots.requiredPlatform` to `MAC_OS` and use desktop-shaped Mac paywall screenshots.
 
 ## Build Uploads
 
@@ -464,6 +467,7 @@ For subscriptions and paid features:
 - Use a first-time introductory offer only after the onboarding flow has shown value; display it with StoreKit/paywall terms, not vague marketing copy.
 - When a real StoreKit or RevenueCat trial is present, the default primary button text is `Start 14-day free trial`, with `✓ No payment due now` below the button. Never show this tagline for a product that does not have a real free-trial introductory offer.
 - Use `list-subscription-price-points` to find price point IDs, then `configure-subscription-pricing` to dry-run and apply subscription prices/intro offers after explicit confirmation.
+- Use `verify-subscription-status` before review submission so rejected/developer-action-needed subscription products or localizations are caught before calling the release ready.
 - Use `verify-subscription-availability` and `configure-subscription-availability` because subscription prices/trials do not automatically make a product available in every sale territory.
 - Use `upload-subscription-review-screenshots --replace-existing` only after the user confirms replacing the current product review screenshots; rerun `verify-subscription-review-screenshots` after upload.
 - Include Privacy Policy and Terms of Use links in the App Store description, even if the app info localization already has a privacy URL.

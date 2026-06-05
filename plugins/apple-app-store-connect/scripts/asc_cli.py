@@ -3279,6 +3279,134 @@ def verify_subscription_availability(config: dict[str, Any], client: AppStoreCon
     }
 
 
+SUBSCRIPTION_STATUS_ERROR_STATES = {
+    "DEVELOPER_ACTION_NEEDED",
+    "REJECTED",
+    "MISSING_METADATA",
+}
+SUBSCRIPTION_STATUS_WARNING_STATES = {
+    "READY_TO_SUBMIT",
+}
+
+
+def read_subscription_status(client: AppStoreConnectClient, subscription_id: str) -> dict[str, Any]:
+    subscription_response = client.get(f"/v1/subscriptions/{subscription_id}")
+    subscription_data = subscription_response.get("data") or {}
+    subscription_attrs = subscription_data.get("attributes") or {}
+    localizations_response = client.get(f"/v1/subscriptions/{subscription_id}/subscriptionLocalizations")
+    localizations = []
+    for item in localizations_response.get("data", []):
+        attrs = item.get("attributes") or {}
+        localizations.append(
+            {
+                "id": item.get("id"),
+                "locale": attrs.get("locale"),
+                "name": attrs.get("name"),
+                "description": attrs.get("description"),
+                "state": attrs.get("state"),
+            }
+        )
+    return {
+        "subscriptionId": str(subscription_id),
+        "productId": subscription_attrs.get("productId"),
+        "referenceName": subscription_attrs.get("name"),
+        "period": subscription_attrs.get("subscriptionPeriod"),
+        "state": subscription_attrs.get("state"),
+        "localizationCount": len(localizations),
+        "localizations": localizations,
+    }
+
+
+def verify_subscription_status(config: dict[str, Any], client: AppStoreConnectClient) -> dict[str, Any]:
+    product_map = subscription_id_by_product(config)
+    entries = subscription_availability_entries(config)
+    issues: list[dict[str, str]] = []
+    products: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries):
+        subscription_id = resolve_subscription_id(entry, product_map)
+        field = f"subscriptions[{index}]"
+        if not subscription_id:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".subscriptionId",
+                    "message": "A subscriptionId/appleProductId or productId mapping is required to verify subscription status.",
+                }
+            )
+            continue
+        try:
+            status = read_subscription_status(client, str(subscription_id))
+        except AppStoreConnectError as exc:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field,
+                    "message": f"Could not read App Store Connect subscription status for {subscription_id}: {exc}",
+                }
+            )
+            continue
+        if entry.get("productId") and not status.get("productId"):
+            status["productId"] = entry.get("productId")
+        products.append(status)
+
+        state = str(status.get("state") or "").upper()
+        if state in SUBSCRIPTION_STATUS_ERROR_STATES:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".state",
+                    "message": f"Subscription {status.get('productId') or subscription_id} is {state} in App Store Connect.",
+                }
+            )
+        elif state in SUBSCRIPTION_STATUS_WARNING_STATES:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field + ".state",
+                    "message": "Subscription is ready to submit but may still need to be selected with an app version before review.",
+                }
+            )
+
+        localizations = status.get("localizations") or []
+        if not localizations:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": field + ".subscriptionLocalizations",
+                    "message": "Subscription is missing localized display metadata.",
+                }
+            )
+        for loc_index, localization in enumerate(localizations):
+            loc_state = str(localization.get("state") or "").upper()
+            loc_field = f"{field}.subscriptionLocalizations[{loc_index}]"
+            if loc_state in SUBSCRIPTION_STATUS_ERROR_STATES:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "field": loc_field + ".state",
+                        "message": f"Subscription localization {localization.get('locale') or localization.get('id')} is {loc_state} in App Store Connect.",
+                    }
+                )
+            elif loc_state in SUBSCRIPTION_STATUS_WARNING_STATES:
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "field": loc_field + ".state",
+                        "message": "Subscription localization is ready to submit and may still need review submission.",
+                    }
+                )
+    errors = [issue for issue in issues if issue["severity"] == "error"]
+    warnings = [issue for issue in issues if issue["severity"] == "warning"]
+    return {
+        "ok": not errors,
+        "productCount": len(entries),
+        "errorCount": len(errors),
+        "warningCount": len(warnings),
+        "issues": issues,
+        "products": products,
+    }
+
+
 def configure_subscription_availability(
     config: dict[str, Any], client: AppStoreConnectClient | None, yes: bool
 ) -> dict[str, Any]:
@@ -4917,6 +5045,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_common_config_argument(verify_sub_availability)
 
+    verify_sub_status = sub.add_parser(
+        "verify-subscription-status",
+        help="Read subscription product and localization states from App Store Connect and flag rejected/developer-action-needed metadata.",
+    )
+    add_common_config_argument(verify_sub_status)
+
     sub_points = sub.add_parser("list-subscription-price-points", help="List price points for a subscription.")
     sub_points.add_argument("--subscription-id", required=True)
     sub_points.add_argument("--territory", help="Optional App Store territory filter, such as USA.")
@@ -5068,6 +5202,8 @@ def main(argv: list[str] | None = None) -> int:
             print_json(configure_subscription_availability(load_json(args.config), client, args.yes))
         elif args.command == "verify-subscription-availability":
             print_json(verify_subscription_availability(load_json(args.config), AppStoreConnectClient()))
+        elif args.command == "verify-subscription-status":
+            print_json(verify_subscription_status(load_json(args.config), AppStoreConnectClient()))
         elif args.command == "list-subscription-price-points":
             query = {"include": "territory", "limit": "200"}
             if args.territory:

@@ -40,6 +40,43 @@ class RecordingClient:
         return {"data": {"id": "posted-id"}}
 
 
+class SubscriptionStatusClient:
+    def __init__(self, subscription_state="APPROVED", localization_state="APPROVED"):
+        self.subscription_state = subscription_state
+        self.localization_state = localization_state
+
+    def get(self, path, query=None):
+        if path == "/v1/subscriptions/sub-weekly":
+            return {
+                "data": {
+                    "id": "sub-weekly",
+                    "type": "subscriptions",
+                    "attributes": {
+                        "productId": "com.example.product.pro.weekly",
+                        "name": "Example Pro Weekly",
+                        "state": self.subscription_state,
+                        "subscriptionPeriod": "ONE_WEEK",
+                    },
+                }
+            }
+        if path == "/v1/subscriptions/sub-weekly/subscriptionLocalizations":
+            return {
+                "data": [
+                    {
+                        "id": "loc-en-us",
+                        "type": "subscriptionLocalizations",
+                        "attributes": {
+                            "locale": "en-US",
+                            "name": "Example Pro Weekly",
+                            "description": "Premium features for Example.",
+                            "state": self.localization_state,
+                        },
+                    }
+                ]
+            }
+        raise AssertionError(f"Unexpected path: {path}")
+
+
 class AscCliValidationTests(unittest.TestCase):
     def test_template_validates_with_expected_warnings_only(self):
         cli = load_cli()
@@ -430,6 +467,50 @@ class AscCliValidationTests(unittest.TestCase):
             result = cli.validate_submission_config(config)
         self.assertTrue(result["ok"])
         self.assertFalse(any(issue["field"].endswith(".dimensions") for issue in result["issues"]))
+
+    def test_verify_subscription_status_blocks_rejected_localization(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [
+                {
+                    "id": "sub-weekly",
+                    "productId": "com.example.product.pro.weekly",
+                    "period": "ONE_WEEK",
+                }
+            ]
+        }
+        result = cli.verify_subscription_status(
+            config,
+            SubscriptionStatusClient(
+                subscription_state="DEVELOPER_ACTION_NEEDED",
+                localization_state="REJECTED",
+            ),
+        )
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertFalse(result["ok"])
+        self.assertIn("subscriptions[0].state", fields)
+        self.assertIn("subscriptions[0].subscriptionLocalizations[0].state", fields)
+
+    def test_verify_subscription_status_warns_ready_to_submit(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [
+                {
+                    "id": "sub-weekly",
+                    "productId": "com.example.product.pro.weekly",
+                    "period": "ONE_WEEK",
+                }
+            ]
+        }
+        result = cli.verify_subscription_status(
+            config,
+            SubscriptionStatusClient(
+                subscription_state="READY_TO_SUBMIT",
+                localization_state="READY_TO_SUBMIT",
+            ),
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["warningCount"], 2)
 
     def test_verify_build_assets_accepts_ios_archive_with_assets_car(self):
         cli = load_cli()

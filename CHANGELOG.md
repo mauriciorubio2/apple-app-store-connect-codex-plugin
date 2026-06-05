@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.5] - 2026-06-05
+
+- Added `verify-subscription-status` to read subscription product and localization states from App Store Connect.
+- Flagged `DEVELOPER_ACTION_NEEDED`, `REJECTED`, and missing subscription localization metadata as release blockers, with `READY_TO_SUBMIT` surfaced as a first-review warning.
+- Added MCP, docs, and tests so rejected subscription localizations are caught alongside screenshot and availability checks.
+
 ## [1.14.4] - 2026-06-05
 
 - Added subscription availability validation, live readback, dry-run planning, and `configure-subscription-availability` support so product sale territories are verified separately from prices and introductory offers.

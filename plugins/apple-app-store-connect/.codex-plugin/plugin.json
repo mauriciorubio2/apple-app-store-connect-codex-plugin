@@ -1,7 +1,7 @@
 {
   "name": "apple-app-store-connect",
-  "version": "1.14.4",
-  "description": "Automate iOS and macOS App Store Connect release prep, access preflight, versioning, metadata, public screenshot price-reference checks, subscription availability and review screenshot checks/uploads, iOS binary asset-catalog preflight, weekly/monthly/yearly subscription pricing with 14-day trial defaults, Free/Pro planning, RevenueCat coordination, build uploads, universal-purchase sync checks, and review submission workflows from Codex.",
+  "version": "1.14.5",
+  "description": "Automate iOS and macOS App Store Connect release prep, access preflight, versioning, metadata, public screenshot price-reference checks, subscription availability, product status, localization, and review screenshot checks/uploads, iOS binary asset-catalog preflight, weekly/monthly/yearly subscription pricing with 14-day trial defaults, Free/Pro planning, RevenueCat coordination, build uploads, universal-purchase sync checks, and review submission workflows from Codex.",
   "author": {
     "name": "mauriciorubio2",
     "url": "https://github.com/mauriciorubio2"
@@ -24,7 +24,7 @@
   "interface": {
     "displayName": "Apple App Store Connect",
     "shortDescription": "Prepare and submit App Store releases with Codex.",
-    "longDescription": "Connects Codex to Apple App Store Connect workflows for iOS and macOS release access preflight, versioning, metadata, ASO and Apple Ads copy, conversion-focused screenshots with public price-reference guards, APP_DESKTOP Mac screenshot uploads, subscription availability verification/configuration, subscription App Review screenshot upload/readback for black/duplicate/plan-specific/macOS desktop-shape issues, iOS IPA/archive asset-catalog preflight for Assets.car and platform checks, flexible Free/Pro subscription access planning, weekly $4.99/monthly $9.99/yearly $29.99 subscription defaults with 14-day free trials and builder overrides, six-month pricing research freshness checks, RevenueCat coordination, iOS/macOS universal-purchase sync checks, subscription pricing, onboarding/review trigger policy, .ipa/.pkg build uploads, review notes, and review submissions using Apple's public APIs and delivery tooling.",
+    "longDescription": "Connects Codex to Apple App Store Connect workflows for iOS and macOS release access preflight, versioning, metadata, ASO and Apple Ads copy, conversion-focused screenshots with public price-reference guards, APP_DESKTOP Mac screenshot uploads, subscription availability verification/configuration, subscription product/localization status readback, subscription App Review screenshot upload/readback for black/duplicate/plan-specific/macOS desktop-shape issues, iOS IPA/archive asset-catalog preflight for Assets.car and platform checks, flexible Free/Pro subscription access planning, weekly $4.99/monthly $9.99/yearly $29.99 subscription defaults with 14-day free trials and builder overrides, six-month pricing research freshness checks, RevenueCat coordination, iOS/macOS universal-purchase sync checks, subscription pricing, onboarding/review trigger policy, .ipa/.pkg build uploads, review notes, and review submissions using Apple's public APIs and delivery tooling.",
     "developerName": "mauriciorubio2",
     "category": "Developer Tools",
     "capabilities": [

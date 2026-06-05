@@ -332,6 +332,42 @@
     ],
     "notes": "Subscription availability is separate from subscription prices and introductory offers. Verify subscriptionAvailabilities before review; pricing rows in every territory do not by themselves make a product available in those territories."
   },
+  "subscriptionStatus": {
+    "requiredBeforeSubmission": true,
+    "verificationCommand": "verify-subscription-status --config appstore-submission.json",
+    "lastReadbackVerifiedOn": "",
+    "lastReadbackStatus": "",
+    "notes": "Run this before review submission. DEVELOPER_ACTION_NEEDED, REJECTED, or missing subscription localizations are blockers; READY_TO_SUBMIT means first-time products may still need to be selected with the app version.",
+    "products": [
+      {
+        "subscriptionId": "subscription-weekly-id",
+        "productId": "com.example.product.pro.weekly",
+        "expectedStates": [
+          "APPROVED",
+          "WAITING_FOR_REVIEW",
+          "IN_REVIEW"
+        ]
+      },
+      {
+        "subscriptionId": "subscription-monthly-id",
+        "productId": "com.example.product.pro.monthly",
+        "expectedStates": [
+          "APPROVED",
+          "WAITING_FOR_REVIEW",
+          "IN_REVIEW"
+        ]
+      },
+      {
+        "subscriptionId": "subscription-yearly-id",
+        "productId": "com.example.product.pro.yearly",
+        "expectedStates": [
+          "APPROVED",
+          "WAITING_FOR_REVIEW",
+          "IN_REVIEW"
+        ]
+      }
+    ]
+  },
   "onboarding": {
     "collectsPreferences": true,
     "paywallTiming": "afterFirstPersonalizedValue",
