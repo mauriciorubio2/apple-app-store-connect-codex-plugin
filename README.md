@@ -31,12 +31,12 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
 - Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
-- Verify iOS `.xcarchive` and `.ipa` artifacts contain the compiled asset catalog (`Assets.car`) before upload.
+- Verify iOS and macOS `.xcarchive`, `.ipa`, and `.app` artifacts contain expected bundle metadata, platform markers, and compiled asset-catalog output before upload.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with platform validation, Transporter and Xcode `destination=upload` fallbacks, plus optional automatic versioning.
 - Prepare native macOS platform versions with `MAC_OS`, `.pkg` artifacts, and `APP_DESKTOP` screenshots.
 - Validate iOS/macOS universal-purchase setup, shared Apple subscription products, and RevenueCat same-project entitlement/offering/package mapping so platform apps stay independent but user-facing pricing and access remain consistent.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
-- Warn when version localizations are missing or use flat `whatsNew` copy so App Store version history/changelog text is not forgotten.
+- Warn when update/resubmission version localizations are missing or use flat `whatsNew` copy so App Store version history/changelog text is not forgotten, while allowing explicitly marked initial app or platform releases to omit unavailable What's New text.
 - Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
 - Prepare IP-sensitive releases and resubmissions with a generic third-party IP checklist, optional `ipReview` validation warnings, no-affiliation disclaimer guidance, and new-binary reminders for asset changes.
 - Create dry-run plans so a human can approve exactly what will change.
@@ -252,6 +252,15 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/MyApp.ipa \
   --expect-bundle-id com.example.product \
   --expect-platform iPhoneOS
+```
+
+For macOS archives, the verifier reads `Contents/Info.plist` and `Contents/Resources/Assets.car` inside the Mac app bundle:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/MyApp-macOS.xcarchive \
+  --expect-bundle-id com.example.product \
+  --expect-platform MacOSX
 ```
 
 Upload a build with the API:

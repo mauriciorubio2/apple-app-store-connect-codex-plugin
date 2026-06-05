@@ -485,7 +485,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.1"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.2"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

@@ -138,6 +138,7 @@
       "automatableFields": [
         "platform",
         "versionString",
+        "initialPlatformRelease",
         "copyright",
         "reviewType",
         "releaseType",
@@ -157,7 +158,7 @@
         "promotionalText": "170 characters maximum",
         "whatsNew": "4000 characters maximum"
       },
-      "notes": "What's New/version history should use hyphen-prefixed bullet lines, one user-visible change per line. Codex normalizes flat paragraphs before applying version localizations."
+      "notes": "What's New/version history should use hyphen-prefixed bullet lines, one user-visible change per line. Codex normalizes flat paragraphs before applying version localizations. Initial app or platform releases can set initialPlatformRelease to true when App Store Connect does not expose editable What's New text yet."
     },
     {
       "group": "Screenshots and app previews",

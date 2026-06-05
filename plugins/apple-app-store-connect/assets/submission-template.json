@@ -23,6 +23,7 @@
   "version": {
     "id": "app-store-version-id",
     "versionString": "1.0.0",
+    "initialPlatformRelease": false,
     "copyright": "2026 Example Company",
     "releaseType": "AFTER_APPROVAL",
     "earliestReleaseDate": null,

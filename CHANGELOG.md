@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.2] - 2026-06-05
+
+- Allowed explicitly marked initial app or platform releases to omit `versionLocalizations[].whatsNew` without a validation warning, matching App Store Connect first-platform behavior.
+- Fixed build-asset verification for macOS archive bundles by reading `Contents/Info.plist` and `Contents/Resources/Assets.car`.
+- Added validation coverage and release guidance for `version.initialPlatformRelease`.
+
 ## [1.14.1] - 2026-06-05
 
 - Added What's New/version-history normalization so flat paragraphs are sent to App Store Connect as hyphen-prefixed bullet lines, one user-visible change per line.

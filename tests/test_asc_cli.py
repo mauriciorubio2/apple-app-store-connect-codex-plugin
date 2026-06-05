@@ -98,6 +98,37 @@ class AscCliValidationTests(unittest.TestCase):
             )
         )
 
+    def test_missing_whats_new_allowed_for_initial_platform_release(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "MAC_OS"},
+            "version": {"versionString": "1.0.0", "initialPlatformRelease": True},
+            "appInfoLocalizations": [
+                {
+                    "locale": "en-US",
+                    "name": "Example Product",
+                    "privacyPolicyUrl": "https://example.com/privacy",
+                }
+            ],
+            "versionLocalizations": [
+                {
+                    "locale": "en-US",
+                    "description": "A useful desktop app with clear user value.",
+                    "keywords": "planner,focus",
+                    "supportUrl": "https://example.com/support",
+                }
+            ],
+        }
+        result = cli.validate_submission_config(config)
+        self.assertTrue(result["ok"])
+        self.assertFalse(
+            any(
+                issue["field"] == "versionLocalizations[en-US].whatsNew"
+                and issue["severity"] == "warning"
+                for issue in result["issues"]
+            )
+        )
+
     def test_whats_new_formatter_splits_flat_version_history_into_bullets(self):
         cli = load_cli()
         flat = (
@@ -366,6 +397,35 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["appCount"], 1)
         self.assertTrue(result["apps"][0]["assetsCarPresent"])
+
+    def test_verify_build_assets_accepts_macos_archive_bundle_layout(self):
+        cli = load_cli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app = root / "Example.xcarchive" / "Products" / "Applications" / "Example.app"
+            resources = app / "Contents" / "Resources"
+            resources.mkdir(parents=True)
+            with (app / "Contents" / "Info.plist").open("wb") as file:
+                plistlib.dump(
+                    {
+                        "CFBundleIdentifier": "com.example.product",
+                        "CFBundleShortVersionString": "1.0.0",
+                        "CFBundleVersion": "42",
+                        "CFBundleSupportedPlatforms": ["MacOSX"],
+                        "LSMinimumSystemVersion": "14.0",
+                    },
+                    file,
+                )
+            (resources / "Assets.car").write_bytes(b"compiled assets")
+            result = cli.verify_build_assets(
+                root / "Example.xcarchive",
+                expect_bundle_id="com.example.product",
+                expect_platform="MacOSX",
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["apps"][0]["minimumOSVersion"], "14.0")
+        self.assertTrue(result["apps"][0]["infoPlistPath"].endswith("Contents/Info.plist"))
+        self.assertTrue(result["apps"][0]["assetsCarPath"].endswith("Contents/Resources/Assets.car"))
 
     def test_verify_build_assets_rejects_ios_ipa_missing_assets_car(self):
         cli = load_cli()

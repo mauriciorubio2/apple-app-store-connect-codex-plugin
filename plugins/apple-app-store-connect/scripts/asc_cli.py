@@ -212,6 +212,7 @@ def summarize_app_info(
     *,
     path: str,
     info: dict[str, Any] | None,
+    info_plist_path: str | None,
     assets_car_present: bool,
     assets_car_path: str | None,
 ) -> dict[str, Any]:
@@ -222,11 +223,16 @@ def summarize_app_info(
         "bundleShortVersion": info.get("CFBundleShortVersionString"),
         "bundleVersion": info.get("CFBundleVersion"),
         "supportedPlatforms": info.get("CFBundleSupportedPlatforms", []),
-        "minimumOSVersion": info.get("MinimumOSVersion"),
+        "minimumOSVersion": info.get("MinimumOSVersion") or info.get("LSMinimumSystemVersion"),
         "infoPlistPresent": bool(info),
+        "infoPlistPath": info_plist_path,
         "assetsCarPresent": assets_car_present,
         "assetsCarPath": assets_car_path,
     }
+
+
+def first_existing_file(paths: list[Path]) -> Path | None:
+    return next((path for path in paths if path.exists()), None)
 
 
 def filesystem_app_summaries(path: Path) -> list[dict[str, Any]]:
@@ -242,18 +248,19 @@ def filesystem_app_summaries(path: Path) -> list[dict[str, Any]]:
 
     summaries: list[dict[str, Any]] = []
     for app in apps:
-        info_path = app / "Info.plist"
+        info_path = first_existing_file([app / "Info.plist", app / "Contents" / "Info.plist"])
         info: dict[str, Any] | None = None
-        if info_path.exists():
+        if info_path:
             with info_path.open("rb") as file:
                 info = plistlib.load(file)
-        assets_path = app / "Assets.car"
+        assets_path = first_existing_file([app / "Assets.car", app / "Contents" / "Resources" / "Assets.car"])
         summaries.append(
             summarize_app_info(
                 path=str(app),
                 info=info,
-                assets_car_present=assets_path.exists(),
-                assets_car_path=str(assets_path) if assets_path.exists() else None,
+                info_plist_path=str(info_path) if info_path else None,
+                assets_car_present=bool(assets_path),
+                assets_car_path=str(assets_path) if assets_path else None,
             )
         )
     return summaries
@@ -281,6 +288,7 @@ def ipa_app_summaries(path: Path) -> list[dict[str, Any]]:
                 summarize_app_info(
                     path=root.rstrip("/"),
                     info=info,
+                    info_plist_path=info_name if info_name in name_set else None,
                     assets_car_present=assets_name in name_set,
                     assets_car_path=assets_name if assets_name in name_set else None,
                 )
@@ -696,6 +704,32 @@ def format_whats_new_bullets(value: str | None) -> str | None:
         items = [item.strip() for item in WHATS_NEW_SENTENCE_BOUNDARY_RE.split(text) if item.strip()]
 
     return "\n".join(f"-{item}" for item in items if item)
+
+
+def is_truthy_config_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
+def is_initial_platform_release(config: dict[str, Any], localization: dict[str, Any] | None = None) -> bool:
+    flag_names = {
+        "initialRelease",
+        "initialAppRelease",
+        "initialAppVersion",
+        "initialPlatformRelease",
+        "firstRelease",
+        "firstPlatformRelease",
+    }
+    candidates: list[dict[str, Any]] = [
+        config,
+        config.get("version") or {},
+        config.get("reviewSubmission") or {},
+        localization or {},
+    ]
+    return any(is_truthy_config_flag(source.get(flag)) for source in candidates for flag in flag_names)
 
 
 def validate_subscription_description(
@@ -2979,7 +3013,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
         formatted_whats_new = format_whats_new_bullets(whats_new)
         add_length_issue(issues, prefix + ".whatsNew", formatted_whats_new, *TEXT_LIMITS["whatsNew"])
         validate_keywords(loc.get("keywords"), issues)
-        if not str(whats_new or "").strip():
+        if not str(whats_new or "").strip() and not is_initial_platform_release(config, loc):
             issues.append(
                 {
                     "severity": "warning",
@@ -2987,7 +3021,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
                     "message": "Add user-visible What's New copy so App Store version history/changelog is not blank.",
                 }
             )
-        elif not whats_new_uses_bullet_lines(whats_new):
+        elif str(whats_new or "").strip() and not whats_new_uses_bullet_lines(whats_new):
             issues.append(
                 {
                     "severity": "warning",

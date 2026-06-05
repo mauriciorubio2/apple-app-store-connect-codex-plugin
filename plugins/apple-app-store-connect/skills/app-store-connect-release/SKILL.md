@@ -125,6 +125,7 @@ Use Apple's product page recommendations:
 - Promotional text: 170 characters maximum. Use for current launches, offers, or updates; do not use it for search ranking keywords.
 - What's New: describe user-visible changes plainly. Format it as hyphen-prefixed bullet lines, one change per line, for example `-Added a Past tab for finished matches.` Avoid empty "bug fixes" copy when the release has meaningful improvements.
 - Version history: before applying metadata for any update or resubmission, make sure every `versionLocalizations[]` entry has `whatsNew` copy that reads like App Store version-history/changelog text. Mention user-visible features, content/data refreshes, review-compliance art or metadata fixes when relevant, and meaningful bug fixes. Keep it concise, avoid internal implementation details, do not include exact subscription prices unless the creator explicitly accepts localization/currency maintenance risk, and rely on the CLI formatter to normalize flat paragraphs into hyphen-prefixed bullet lines before upload.
+- Initial app or platform releases may legitimately have no editable What's New/version-history text in App Store Connect. Record this with `version.initialPlatformRelease: true`, `version.initialRelease: true`, or a matching `reviewSubmission`/localization flag so validation does not treat the empty field as a forgotten changelog.
 
 ## Third-Party IP Safety
 
@@ -268,6 +269,15 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/App.ipa \
   --expect-bundle-id com.example.product \
   --expect-platform iPhoneOS
+```
+
+For macOS archives, use `MacOSX` as the expected platform. The verifier reads the Mac bundle layout under `Contents/Info.plist` and `Contents/Resources/Assets.car`:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/App-macOS.xcarchive \
+  --expect-bundle-id com.example.product \
+  --expect-platform MacOSX
 ```
 
 Treat missing `Assets.car`, a bundle mismatch, or an unexpected platform as a hard upload blocker. Missing `Assets.car` can trigger `ITMS-90546: Missing asset catalog` after delivery.
