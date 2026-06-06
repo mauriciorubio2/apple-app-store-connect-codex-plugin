@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 import zipfile
@@ -237,6 +238,26 @@ def first_existing_file(paths: list[Path]) -> Path | None:
     return next((path for path in paths if path.exists()), None)
 
 
+PLATFORM_EXPECTATION_ALIASES = {
+    "IOS": "iPhoneOS",
+    "IPHONEOS": "iPhoneOS",
+    "MACOS": "MacOSX",
+    "MAC_OS": "MacOSX",
+    "MACOSX": "MacOSX",
+}
+
+
+def normalize_expected_platform(platform: str | None) -> str | None:
+    if not platform:
+        return None
+    key = re.sub(r"[^A-Za-z0-9_]+", "", platform).upper()
+    return PLATFORM_EXPECTATION_ALIASES.get(key, platform)
+
+
+def default_expected_platform_for_upload(platform: str) -> str:
+    return "MacOSX" if platform.upper() == "MAC_OS" else "iPhoneOS"
+
+
 def filesystem_app_summaries(path: Path) -> list[dict[str, Any]]:
     apps: list[Path] = []
     if path.suffix == ".app" and path.is_dir():
@@ -266,6 +287,28 @@ def filesystem_app_summaries(path: Path) -> list[dict[str, Any]]:
             )
         )
     return summaries
+
+
+def pkg_app_summaries(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    pkgutil = shutil.which("pkgutil")
+    if not pkgutil:
+        return [], [
+            {
+                "severity": "error",
+                "field": "path",
+                "message": "Build asset verification for .pkg files requires pkgutil, but pkgutil was not found.",
+            }
+        ]
+    with tempfile.TemporaryDirectory(prefix="asc-pkg-assets-") as tmp:
+        expanded = Path(tmp) / "expanded"
+        proc = subprocess.run([pkgutil, "--expand-full", str(path), str(expanded)], capture_output=True, text=True)
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            message = "pkgutil could not expand the .pkg for asset verification."
+            if detail:
+                message += f" {detail}"
+            return [], [{"severity": "error", "field": "path", "message": message}]
+        return filesystem_app_summaries(expanded), []
 
 
 def ipa_app_summaries(path: Path) -> list[dict[str, Any]]:
@@ -306,6 +349,7 @@ def verify_build_assets(
     require_assets_car: bool = True,
 ) -> dict[str, Any]:
     artifact = Path(path).expanduser()
+    normalized_expect_platform = normalize_expected_platform(expect_platform)
     issues: list[dict[str, Any]] = []
     apps: list[dict[str, Any]] = []
 
@@ -319,6 +363,9 @@ def verify_build_assets(
         )
     elif artifact.suffix.lower() == ".ipa":
         apps = ipa_app_summaries(artifact)
+    elif artifact.suffix.lower() == ".pkg":
+        apps, pkg_issues = pkg_app_summaries(artifact)
+        issues.extend(pkg_issues)
     elif artifact.suffix.lower() in {".app", ".xcarchive"} or artifact.is_dir():
         apps = filesystem_app_summaries(artifact)
     else:
@@ -326,7 +373,7 @@ def verify_build_assets(
             {
                 "severity": "error",
                 "field": "path",
-                "message": "Build asset verification supports .ipa, .xcarchive, .app, or directories containing .app bundles.",
+                "message": "Build asset verification supports .ipa, .pkg, .xcarchive, .app, or directories containing .app bundles.",
             }
         )
 
@@ -358,12 +405,12 @@ def verify_build_assets(
                 }
             )
         platforms = app.get("supportedPlatforms") or []
-        if expect_platform and expect_platform not in platforms:
+        if normalized_expect_platform and normalized_expect_platform not in platforms:
             issues.append(
                 {
                     "severity": "error",
                     "field": f"{field}.CFBundleSupportedPlatforms",
-                    "message": f"Expected platform {expect_platform} in CFBundleSupportedPlatforms, found {platforms or 'none'}.",
+                    "message": f"Expected platform {normalized_expect_platform} in CFBundleSupportedPlatforms, found {platforms or 'none'}.",
                 }
             )
         if require_assets_car and not app.get("assetsCarPresent"):
@@ -381,7 +428,7 @@ def verify_build_assets(
         "path": str(artifact),
         "appCount": len(apps),
         "expectBundleId": expect_bundle_id,
-        "expectPlatform": expect_platform,
+        "expectPlatform": normalized_expect_platform,
         "requireAssetsCar": require_assets_car,
         "errorCount": len(errors),
         "issues": issues,
@@ -393,14 +440,14 @@ def verify_upload_binary_assets_if_needed(args: argparse.Namespace, file_path: P
     if getattr(args, "skip_binary_asset_check", False):
         return None
     platform = str(getattr(args, "platform", "") or "").upper()
-    if platform != "IOS" or ext != ".ipa":
+    if (platform, ext) not in {("IOS", ".ipa"), ("MAC_OS", ".pkg")}:
         return None
     if not file_path.exists():
         return None
     check = verify_build_assets(
         file_path,
         expect_bundle_id=getattr(args, "expect_bundle_id", None),
-        expect_platform=getattr(args, "expect_platform", None) or "iPhoneOS",
+        expect_platform=getattr(args, "expect_platform", None) or default_expected_platform_for_upload(platform),
         require_assets_car=True,
     )
     if not check["ok"]:
@@ -5084,9 +5131,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     binary_assets = sub.add_parser(
         "verify-build-assets",
-        help="Inspect an .ipa, .xcarchive, or .app for required compiled asset catalog output before upload.",
+        help="Inspect an .ipa, .pkg, .xcarchive, or .app for required compiled asset catalog output before upload.",
     )
-    binary_assets.add_argument("--path", required=True, help="Path to an .ipa, .xcarchive, .app, or directory.")
+    binary_assets.add_argument("--path", required=True, help="Path to an .ipa, .pkg, .xcarchive, .app, or directory.")
     binary_assets.add_argument("--expect-bundle-id", help="Expected CFBundleIdentifier.")
     binary_assets.add_argument(
         "--expect-platform",
@@ -5123,7 +5170,7 @@ def build_parser() -> argparse.ArgumentParser:
     upload.add_argument(
         "--skip-binary-asset-check",
         action="store_true",
-        help="Skip the iOS IPA Assets.car preflight. Use only when a separate binary validation has already passed.",
+        help="Skip the iOS IPA or macOS PKG Assets.car preflight. Use only when a separate binary validation has already passed.",
     )
     upload.add_argument("--auto-version", action="store_true", help="Infer missing version/build values from the project.")
     add_versioning_arguments(upload)
@@ -5138,7 +5185,7 @@ def build_parser() -> argparse.ArgumentParser:
     transporter.add_argument(
         "--skip-binary-asset-check",
         action="store_true",
-        help="Skip the iOS IPA Assets.car preflight. Use only when a separate binary validation has already passed.",
+        help="Skip the iOS IPA or macOS PKG Assets.car preflight. Use only when a separate binary validation has already passed.",
     )
     transporter.add_argument("--transporter", help="Path to iTMSTransporter.")
     transporter.add_argument("--verbosity", default="eXtreme")

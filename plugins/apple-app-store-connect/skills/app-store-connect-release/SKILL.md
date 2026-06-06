@@ -283,6 +283,15 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --expect-platform MacOSX
 ```
 
+After exporting a macOS `.pkg`, verify the delivered package too. The verifier expands the package and inspects the embedded `.app`, so missing compiled asset catalogs are caught before upload:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/App.pkg \
+  --expect-bundle-id com.example.product \
+  --expect-platform MAC_OS
+```
+
 Treat missing `Assets.car`, a bundle mismatch, or an unexpected platform as a hard upload blocker. Missing `Assets.car` can trigger `ITMS-90546: Missing asset catalog` after delivery.
 
 Use this upload fallback order:
@@ -369,6 +378,21 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --yes
 ```
 
+Confirmed macOS package upload:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
+  --app-id 1234567890 \
+  --file build/App.pkg \
+  --version-string 1.0.0 \
+  --build-number 42 \
+  --platform MAC_OS \
+  --expect-bundle-id com.example.product \
+  --expect-platform MAC_OS \
+  --wait 1800 \
+  --yes
+```
+
 Transporter fallback:
 
 ```bash
@@ -402,7 +426,7 @@ Ready-for-submission sequence for a Mac platform version:
 
 1. Run `doctor`, App Store Connect preflight, and the RevenueCat `list_projects` probe.
 2. Validate `crossPlatformRelease` and `revenueCatIntegration.crossPlatform`.
-3. Upload the signed `.pkg` with `upload-build-api --platform MAC_OS` after dry run and explicit confirmation.
+3. Verify the exported `.pkg` with `verify-build-assets --expect-platform MAC_OS`, then upload it with `upload-build-api --platform MAC_OS` after dry run and explicit confirmation.
 4. Wait for the build to process and become selectable.
 5. Create or patch the `MAC_OS` App Store version, select the processed Mac build, and apply Mac-specific review notes.
 6. Upload `APP_DESKTOP` screenshots.

@@ -31,7 +31,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Default subscription apps to a flexible Free + Pro model where Free grants roughly 70-80% of useful functionality and Pro unlocks high-intent depth.
 - Validate value-first onboarding, paywall timing, and StoreKit review prompt triggers for subscription apps.
 - Plan and apply App Store versions and build numbers from Xcode project settings, Info.plists, git history, or a Codex iteration count.
-- Verify iOS and macOS `.xcarchive`, `.ipa`, and `.app` artifacts contain expected bundle metadata, platform markers, and compiled asset-catalog output before upload.
+- Verify iOS and macOS `.xcarchive`, `.ipa`, `.pkg`, and `.app` artifacts contain expected bundle metadata, platform markers, and compiled asset-catalog output before upload.
 - Upload `.ipa` or `.pkg` builds with Apple's Build Uploads API, with platform validation, Transporter and Xcode `destination=upload` fallbacks, plus optional automatic versioning.
 - Prepare native macOS platform versions with `MAC_OS`, `.pkg` artifacts, and `APP_DESKTOP` screenshots.
 - Validate iOS/macOS universal-purchase setup, shared Apple subscription products, and RevenueCat same-project entitlement/offering/package mapping so platform apps stay independent but user-facing pricing and access remain consistent.
@@ -300,6 +300,15 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --expect-platform MacOSX
 ```
 
+After exporting the macOS `.pkg`, run the same check on the package that will be delivered. The verifier expands the package and inspects the embedded `.app`, so a missing `Assets.car` is caught before App Store processing:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
+  --path build/MyApp.pkg \
+  --expect-bundle-id com.example.product \
+  --expect-platform MAC_OS
+```
+
 Upload a build with the API:
 
 ```bash
@@ -322,6 +331,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --version-string 1.0.0 \
   --build-number 42 \
   --platform MAC_OS \
+  --expect-bundle-id com.example.product \
+  --expect-platform MAC_OS \
   --wait 1800 \
   --yes
 ```
@@ -340,7 +351,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --yes
 ```
 
-`upload-build-api` and `upload-build-transporter` automatically run the iOS `.ipa` asset-catalog preflight unless `--skip-binary-asset-check` is deliberately supplied after a separate verification has already passed.
+`upload-build-api` and `upload-build-transporter` automatically run the iOS `.ipa` and macOS `.pkg` asset-catalog preflight unless `--skip-binary-asset-check` is deliberately supplied after a separate verification has already passed.
 
 ## Versioning Behavior
 

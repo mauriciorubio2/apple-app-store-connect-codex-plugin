@@ -9,6 +9,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -567,6 +568,75 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertTrue(result["apps"][0]["infoPlistPath"].endswith("Contents/Info.plist"))
         self.assertTrue(result["apps"][0]["assetsCarPath"].endswith("Contents/Resources/Assets.car"))
 
+    def test_verify_build_assets_accepts_macos_pkg_with_assets_car(self):
+        cli = load_cli()
+
+        def fake_expand(command, capture_output=False, text=False):
+            expanded = Path(command[-1])
+            app = expanded / "Payload" / "Example.app"
+            resources = app / "Contents" / "Resources"
+            resources.mkdir(parents=True)
+            with (app / "Contents" / "Info.plist").open("wb") as file:
+                plistlib.dump(
+                    {
+                        "CFBundleIdentifier": "com.example.product",
+                        "CFBundleShortVersionString": "1.0.0",
+                        "CFBundleVersion": "42",
+                        "CFBundleSupportedPlatforms": ["MacOSX"],
+                        "LSMinimumSystemVersion": "14.0",
+                    },
+                    file,
+                )
+            (resources / "Assets.car").write_bytes(b"compiled assets")
+            return cli.subprocess.CompletedProcess(command, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = Path(tmp) / "Example.pkg"
+            pkg.write_bytes(b"flat package")
+            with mock.patch.object(cli.shutil, "which", return_value="/usr/sbin/pkgutil"):
+                with mock.patch.object(cli.subprocess, "run", side_effect=fake_expand):
+                    result = cli.verify_build_assets(
+                        pkg,
+                        expect_bundle_id="com.example.product",
+                        expect_platform="MAC_OS",
+                    )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["expectPlatform"], "MacOSX")
+        self.assertTrue(result["apps"][0]["assetsCarPresent"])
+
+    def test_verify_build_assets_rejects_macos_pkg_missing_assets_car(self):
+        cli = load_cli()
+
+        def fake_expand(command, capture_output=False, text=False):
+            expanded = Path(command[-1])
+            app = expanded / "Payload" / "Example.app"
+            (app / "Contents" / "Resources").mkdir(parents=True)
+            with (app / "Contents" / "Info.plist").open("wb") as file:
+                plistlib.dump(
+                    {
+                        "CFBundleIdentifier": "com.example.product",
+                        "CFBundleShortVersionString": "1.0.0",
+                        "CFBundleVersion": "42",
+                        "CFBundleSupportedPlatforms": ["MacOSX"],
+                    },
+                    file,
+                )
+            return cli.subprocess.CompletedProcess(command, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = Path(tmp) / "Example.pkg"
+            pkg.write_bytes(b"flat package")
+            with mock.patch.object(cli.shutil, "which", return_value="/usr/sbin/pkgutil"):
+                with mock.patch.object(cli.subprocess, "run", side_effect=fake_expand):
+                    result = cli.verify_build_assets(
+                        pkg,
+                        expect_bundle_id="com.example.product",
+                        expect_platform="MacOS",
+                    )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["expectPlatform"], "MacOSX")
+        self.assertIn("Assets.car", result["issues"][0]["field"])
+
     def test_verify_build_assets_rejects_ios_ipa_missing_assets_car(self):
         cli = load_cli()
         with tempfile.TemporaryDirectory() as tmp:
@@ -667,6 +737,39 @@ class AscCliValidationTests(unittest.TestCase):
             )()
             with self.assertRaisesRegex(cli.AppStoreConnectError, "MAC_OS uploads should use .pkg"):
                 cli.upload_build_api(args, client=object())
+
+    def test_macos_upload_dry_run_checks_pkg_assets(self):
+        cli = load_cli()
+        with tempfile.NamedTemporaryFile(suffix=".pkg") as file:
+            args = type(
+                "Args",
+                (),
+                {
+                    "file": file.name,
+                    "version_string": "1.0.0",
+                    "build_number": "42",
+                    "auto_version": False,
+                    "project_dir": ".",
+                    "release_level": "auto",
+                    "iteration_count": None,
+                    "current_version": None,
+                    "current_build": None,
+                    "no_git": True,
+                    "yes": False,
+                    "platform": "MAC_OS",
+                    "app_id": "1234567890",
+                    "wait": 0,
+                    "expect_bundle_id": "com.example.product",
+                    "expect_platform": None,
+                    "skip_binary_asset_check": False,
+                },
+            )()
+            check = {"ok": True, "appCount": 1, "issues": [], "apps": []}
+            with mock.patch.object(cli, "verify_build_assets", return_value=check) as verify:
+                result = cli.upload_build_api(args, client=None)
+        self.assertEqual(result["binaryAssetCheck"], check)
+        verify.assert_called_once()
+        self.assertEqual(verify.call_args.kwargs["expect_platform"], "MacOSX")
 
     def test_cross_platform_subscription_plan_preserves_existing_prices_and_trials(self):
         cli = load_cli()

@@ -285,7 +285,7 @@ TOOLS = [
     },
     {
         "name": "asc_verify_build_assets",
-        "description": "Inspect an .ipa, .xcarchive, or .app for compiled asset catalog output, bundle ID, and platform before upload.",
+        "description": "Inspect an .ipa, .pkg, .xcarchive, or .app for compiled asset catalog output, bundle ID, and platform before upload.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -557,7 +557,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.5"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.6"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.6] - 2026-06-06
+
+- Added `.pkg` support to build-asset verification by expanding macOS packages and inspecting the embedded `.app` bundle for `Contents/Resources/Assets.car`.
+- Added automatic macOS `.pkg` asset-catalog preflight to API and Transporter upload dry-runs/uploads so package deliveries with missing compiled asset catalogs are blocked locally.
+- Accepted common platform aliases such as `MAC_OS` and `MacOS` by normalizing them to the App Store bundle platform marker `MacOSX`.
+
 ## [1.14.5] - 2026-06-05
 
 - Added `verify-subscription-status` to read subscription product and localization states from App Store Connect.
