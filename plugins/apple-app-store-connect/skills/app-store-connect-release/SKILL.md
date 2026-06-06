@@ -274,6 +274,18 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --expect-platform iPhoneOS
 ```
 
+After the upload processes, verify that the App Store Connect version has selected the same processed build whose local archive or IPA passed the asset-catalog check:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-selected-build \
+  --app-id 1234567890 \
+  --platform IOS \
+  --artifact build/App.ipa \
+  --expect-bundle-id com.example.product
+```
+
+Treat a selected-build mismatch, missing selected build, or non-`VALID` processing state as a hard release blocker. A later valid upload is not enough if the older rejected build remains selected on the App Store version.
+
 For macOS archives, use `MacOSX` as the expected platform. The verifier reads the Mac bundle layout under `Contents/Info.plist` and `Contents/Resources/Assets.car`:
 
 ```bash
@@ -310,7 +322,7 @@ xcodebuild -exportArchive \
 
 For the Xcode fallback, the export options should use `destination=upload`, automatic signing when appropriate, and `signingCertificate=Apple Distribution`. Remove stale manual `provisioningProfiles` from the upload export options when automatic signing is intended.
 
-After any upload succeeds, poll App Store Connect builds until the new build is processed and `VALID`, then set `version.buildId` to that build ID and run `apply-metadata --yes` after confirmation. "Ready for submission" means the App Store Connect version has the uploaded build selected, required metadata applied, screenshots uploaded, subscription prices/trials configured, subscription availability verified, subscription review screenshots uploaded and verified from App Store Connect readback, first-time IAP/subscription products selected with the app version when required, review details complete, and preflight checks passing. A local archive, GitHub push, or unselected uploaded build is not ready for submission.
+After any upload succeeds, poll App Store Connect builds until the new build is processed and `VALID`, run `verify-selected-build` against the artifact, then set `version.buildId` to that build ID and run `apply-metadata --yes` after confirmation. "Ready for submission" means the App Store Connect version has the uploaded build selected, required metadata applied, screenshots uploaded, subscription prices/trials configured, subscription availability verified, subscription review screenshots uploaded and verified from App Store Connect readback, first-time IAP/subscription products selected with the app version when required, review details complete, and preflight checks passing. A local archive, GitHub push, or unselected uploaded build is not ready for submission.
 
 ## Versioning
 

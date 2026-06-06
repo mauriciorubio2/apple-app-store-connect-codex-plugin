@@ -456,6 +456,155 @@ def verify_upload_binary_assets_if_needed(args: argparse.Namespace, file_path: P
     return check
 
 
+def artifact_build_expectations(
+    artifact_path: str | Path | None,
+    *,
+    expect_bundle_id: str | None,
+    expect_platform: str | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if not artifact_path:
+        return None, None
+    check = verify_build_assets(
+        artifact_path,
+        expect_bundle_id=expect_bundle_id,
+        expect_platform=expect_platform,
+        require_assets_car=True,
+    )
+    app = check["apps"][0] if len(check["apps"]) == 1 else None
+    if check["ok"] and not app:
+        check["issues"].append(
+            {
+                "severity": "error",
+                "field": "apps",
+                "message": "Expected exactly one app bundle in the verified artifact.",
+            }
+        )
+        check["ok"] = False
+        check["errorCount"] = check.get("errorCount", 0) + 1
+    return check, app
+
+
+def selected_build_from_response(response: dict[str, Any], version_string: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    versions = response.get("data") or []
+    version = next(
+        (
+            item
+            for item in versions
+            if str((item.get("attributes") or {}).get("versionString") or "") == str(version_string)
+        ),
+        None,
+    )
+    if not version:
+        return None, None
+    build_ref = (((version.get("relationships") or {}).get("build") or {}).get("data") or {})
+    build_id = build_ref.get("id")
+    included = response.get("included") or []
+    build = next((item for item in included if item.get("type") == "builds" and item.get("id") == build_id), None)
+    return version, build
+
+
+def verify_selected_build(args: argparse.Namespace, client: AppStoreConnectClient) -> dict[str, Any]:
+    platform = str(args.platform or "IOS").upper()
+    expected_platform = args.expect_platform or default_expected_platform_for_upload(platform)
+    artifact_check, artifact_app = artifact_build_expectations(
+        args.artifact,
+        expect_bundle_id=args.expect_bundle_id,
+        expect_platform=expected_platform,
+    )
+    version_string = args.version_string or (artifact_app or {}).get("bundleShortVersion")
+    build_number = args.build_number or (artifact_app or {}).get("bundleVersion")
+    issues: list[dict[str, Any]] = []
+
+    if artifact_check:
+        issues.extend(
+            {
+                **issue,
+                "field": f"artifact.{issue['field']}",
+            }
+            for issue in artifact_check.get("issues", [])
+        )
+    if not version_string:
+        issues.append(
+            {
+                "severity": "error",
+                "field": "versionString",
+                "message": "Provide --version-string or pass an artifact with CFBundleShortVersionString.",
+            }
+        )
+    if not build_number:
+        issues.append(
+            {
+                "severity": "error",
+                "field": "buildNumber",
+                "message": "Provide --build-number or pass an artifact with CFBundleVersion.",
+            }
+        )
+
+    version: dict[str, Any] | None = None
+    build: dict[str, Any] | None = None
+    response: dict[str, Any] | None = None
+    if version_string:
+        response = client.get(
+            f"/v1/apps/{args.app_id}/appStoreVersions",
+            {"filter[platform]": platform, "include": "build", "limit": "200"},
+        )
+        version, build = selected_build_from_response(response, str(version_string))
+        if not version:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "appStoreVersions",
+                    "message": f"No App Store Connect version {version_string} was found for platform {platform}.",
+                }
+            )
+        elif not build:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "appStoreVersions.build",
+                    "message": f"Version {version_string} does not have a selected build in App Store Connect.",
+                }
+            )
+
+    build_attrs = (build or {}).get("attributes") or {}
+    selected_build_number = str(build_attrs.get("version") or "") or None
+    selected_processing_state = build_attrs.get("processingState")
+    if build and build_number and selected_build_number != str(build_number):
+        issues.append(
+            {
+                "severity": "error",
+                "field": "build.version",
+                "message": f"Selected App Store Connect build is {selected_build_number}, expected {build_number}.",
+            }
+        )
+    if build and selected_processing_state != "VALID":
+        issues.append(
+            {
+                "severity": "error",
+                "field": "build.processingState",
+                "message": f"Selected build processingState is {selected_processing_state or 'missing'}, expected VALID.",
+            }
+        )
+
+    errors = [issue for issue in issues if issue["severity"] == "error"]
+    return {
+        "ok": not errors,
+        "appId": args.app_id,
+        "platform": platform,
+        "versionString": version_string,
+        "expectedBuildNumber": str(build_number) if build_number else None,
+        "selectedVersionId": (version or {}).get("id"),
+        "selectedBuildId": (build or {}).get("id"),
+        "selectedBuildNumber": selected_build_number,
+        "selectedProcessingState": selected_processing_state,
+        "selectedBuildUploadedDate": build_attrs.get("uploadedDate"),
+        "artifactCheck": artifact_check,
+        "errorCount": len(errors),
+        "issues": issues,
+        "responseIncludedBuild": build,
+    }
+
+
 def derive_key_id_from_path(path: str | Path | None) -> str | None:
     if not path:
         return None
@@ -5146,6 +5295,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not fail when Assets.car is missing. Use only for unusual non-iOS diagnostics.",
     )
 
+    selected_build = sub.add_parser(
+        "verify-selected-build",
+        help="Verify the App Store Connect version has the expected processed build selected.",
+    )
+    selected_build.add_argument("--app-id", required=True)
+    selected_build.add_argument("--platform", default="IOS")
+    selected_build.add_argument("--version-string")
+    selected_build.add_argument("--build-number")
+    selected_build.add_argument(
+        "--artifact",
+        help="Optional local .ipa, .pkg, .xcarchive, or .app to verify and use for version/build expectations.",
+    )
+    selected_build.add_argument("--expect-bundle-id", help="Expected CFBundleIdentifier for the local artifact.")
+    selected_build.add_argument(
+        "--expect-platform",
+        help="Expected bundle platform marker for the local artifact. Defaults from --platform.",
+    )
+
     apps = sub.add_parser("list-apps", help="List App Store Connect apps visible to the API key.")
     apps.add_argument("--bundle-id")
     apps.add_argument("--name")
@@ -5287,6 +5454,8 @@ def main(argv: list[str] | None = None) -> int:
                     require_assets_car=not args.allow_missing_assets_car,
                 )
             )
+        elif args.command == "verify-selected-build":
+            print_json(verify_selected_build(args, AppStoreConnectClient()))
         elif args.command == "list-apps":
             query = {}
             if args.bundle_id:

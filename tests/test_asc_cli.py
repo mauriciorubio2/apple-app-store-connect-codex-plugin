@@ -78,6 +78,37 @@ class SubscriptionStatusClient:
         raise AssertionError(f"Unexpected path: {path}")
 
 
+class SelectedBuildClient:
+    def __init__(self, *, selected_build="42", processing_state="VALID"):
+        self.selected_build = selected_build
+        self.processing_state = processing_state
+
+    def get(self, path, query=None):
+        if path == "/v1/apps/1234567890/appStoreVersions":
+            return {
+                "data": [
+                    {
+                        "id": "version-1",
+                        "type": "appStoreVersions",
+                        "attributes": {"versionString": "1.0.0", "platform": "IOS"},
+                        "relationships": {"build": {"data": {"id": "build-1", "type": "builds"}}},
+                    }
+                ],
+                "included": [
+                    {
+                        "id": "build-1",
+                        "type": "builds",
+                        "attributes": {
+                            "version": self.selected_build,
+                            "processingState": self.processing_state,
+                            "uploadedDate": "2026-06-06T00:00:00-07:00",
+                        },
+                    }
+                ],
+            }
+        raise AssertionError(f"Unexpected path: {path}")
+
+
 class AscCliValidationTests(unittest.TestCase):
     def test_template_validates_with_expected_warnings_only(self):
         cli = load_cli()
@@ -661,6 +692,60 @@ class AscCliValidationTests(unittest.TestCase):
             )
         self.assertFalse(result["ok"])
         self.assertIn("Assets.car", result["issues"][0]["field"])
+
+    def test_verify_selected_build_accepts_valid_selected_artifact_build(self):
+        cli = load_cli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app = root / "Example.xcarchive" / "Products" / "Applications" / "Example.app"
+            app.mkdir(parents=True)
+            with (app / "Info.plist").open("wb") as file:
+                plistlib.dump(
+                    {
+                        "CFBundleIdentifier": "com.example.product",
+                        "CFBundleShortVersionString": "1.0.0",
+                        "CFBundleVersion": "42",
+                        "CFBundleSupportedPlatforms": ["iPhoneOS"],
+                    },
+                    file,
+                )
+            (app / "Assets.car").write_bytes(b"compiled assets")
+            args = type(
+                "Args",
+                (),
+                {
+                    "app_id": "1234567890",
+                    "platform": "IOS",
+                    "version_string": None,
+                    "build_number": None,
+                    "artifact": str(root / "Example.xcarchive"),
+                    "expect_bundle_id": "com.example.product",
+                    "expect_platform": "iPhoneOS",
+                },
+            )()
+            result = cli.verify_selected_build(args, SelectedBuildClient())
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["versionString"], "1.0.0")
+        self.assertEqual(result["selectedBuildNumber"], "42")
+
+    def test_verify_selected_build_rejects_stale_selected_build(self):
+        cli = load_cli()
+        args = type(
+            "Args",
+            (),
+            {
+                "app_id": "1234567890",
+                "platform": "IOS",
+                "version_string": "1.0.0",
+                "build_number": "43",
+                "artifact": None,
+                "expect_bundle_id": None,
+                "expect_platform": None,
+            },
+        )()
+        result = cli.verify_selected_build(args, SelectedBuildClient(selected_build="42"))
+        self.assertFalse(result["ok"])
+        self.assertIn("build.version", {issue["field"] for issue in result["issues"]})
 
     def test_ip_review_warns_when_independent_app_disclaimers_are_missing(self):
         cli = load_cli()

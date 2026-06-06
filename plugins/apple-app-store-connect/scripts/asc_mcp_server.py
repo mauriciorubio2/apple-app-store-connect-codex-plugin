@@ -297,6 +297,26 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    {
+        "name": "asc_verify_selected_build",
+        "description": "Verify the App Store Connect version has the expected processed build selected, optionally tied to a local artifact that has Assets.car.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "appId": {"type": "string"},
+                "platform": {"type": "string", "default": "IOS"},
+                "versionString": {"type": "string"},
+                "buildNumber": {"type": "string"},
+                "artifact": {
+                    "type": "string",
+                    "description": "Optional local .ipa, .pkg, .xcarchive, or .app used to infer version/build and verify Assets.car.",
+                },
+                "expectBundleId": {"type": "string"},
+                "expectPlatform": {"type": "string"},
+            },
+            "required": ["appId"],
+        },
+    },
 ]
 
 
@@ -544,6 +564,21 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if arguments.get("allowMissingAssetsCar"):
             command.append("--allow-missing-assets-car")
         text = run_command(command)
+    elif name == "asc_verify_selected_build":
+        command = ["python3", str(CLI), "verify-selected-build", "--app-id", arguments["appId"]]
+        if arguments.get("platform"):
+            command += ["--platform", arguments["platform"]]
+        if arguments.get("versionString"):
+            command += ["--version-string", arguments["versionString"]]
+        if arguments.get("buildNumber"):
+            command += ["--build-number", arguments["buildNumber"]]
+        if arguments.get("artifact"):
+            command += ["--artifact", arguments["artifact"]]
+        if arguments.get("expectBundleId"):
+            command += ["--expect-bundle-id", arguments["expectBundleId"]]
+        if arguments.get("expectPlatform"):
+            command += ["--expect-platform", arguments["expectPlatform"]]
+        text = run_command(command)
     else:
         raise RuntimeError(f"Unknown tool: {name}")
     return {"content": [{"type": "text", "text": text}]}
@@ -557,7 +592,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.6"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.7"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.7] - 2026-06-06
+
+- Added `verify-selected-build` to confirm the App Store Connect version has the expected processed build selected after upload.
+- Tied selected-build verification to local `.ipa`, `.pkg`, `.xcarchive`, or `.app` asset checks so stale rejected builds are caught before a release is called ready.
+- Exposed selected-build verification through MCP and release guidance as a hard blocker alongside `Assets.car` checks.
+
 ## [1.14.6] - 2026-06-06
 
 - Added `.pkg` support to build-asset verification by expanding macOS packages and inspecting the embedded `.app` bundle for `Contents/Resources/Assets.car`.

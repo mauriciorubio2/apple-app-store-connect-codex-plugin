@@ -291,6 +291,16 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --expect-platform iPhoneOS
 ```
 
+After the upload processes, verify that App Store Connect selected the same processed build you just checked locally. This catches stale selections such as an older rejected build still attached to the version:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-selected-build \
+  --app-id 1234567890 \
+  --platform IOS \
+  --artifact build/MyApp.ipa \
+  --expect-bundle-id com.example.product
+```
+
 For macOS archives, the verifier reads `Contents/Info.plist` and `Contents/Resources/Assets.car` inside the Mac app bundle:
 
 ```bash
