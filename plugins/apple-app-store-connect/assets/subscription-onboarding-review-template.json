@@ -138,6 +138,7 @@
         "Choose favorite teams, topics, groups, tournaments, or goals",
         "View the personalized hub, schedule, countdown, results, or status",
         "Track a sensible number of favorites or reminders",
+        "Preview each major content category, insight, or workflow enough to understand the value",
         "Use basic search, filters, and detail screens",
         "Keep using the core app without subscribing"
       ],
@@ -154,14 +155,16 @@
         "Advanced notification controls and time-sensitive reminders",
         "Widgets, live activities, lock-screen experiences, or premium glanceables",
         "Historical archives, advanced stats, exports, comparisons, or deeper insights",
-        "Premium personalization, themes, or ad-free experience when relevant"
+        "Premium personalization, themes, or ad-free experience when relevant",
+        "High-intent external provider actions or deep links after the user has seen a useful preview"
       ],
       "lockedFeatureTypes": [
         "unlimited tracking",
         "advanced alerts",
         "widgets and live activities",
         "advanced history and analytics",
-        "premium personalization"
+        "premium personalization",
+        "premium external or provider actions"
       ],
       "locksCoreLoop": false
     },
@@ -175,6 +178,8 @@
       "principles": [
         "never block first-run personalization",
         "show useful personalized content before the paywall",
+        "show useful previews, samples, summaries, or basic details before locking deeper Pro actions",
+        "lock high-intent depth, unlimited use, advanced personalization, exports, or provider actions rather than the first useful result",
         "keep restore purchases, terms, privacy, trial, renewal, and cancellation context visible"
       ]
     }

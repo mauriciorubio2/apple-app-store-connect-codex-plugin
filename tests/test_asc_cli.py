@@ -1538,6 +1538,44 @@ class AscCliValidationTests(unittest.TestCase):
         fields = {issue["field"] for issue in result["issues"]}
         self.assertIn("freeProAccessModel.proTier.locksCoreLoop", fields)
 
+    def test_growth_strategy_warns_without_preview_first_paywall_principle(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [{"id": "sub-123", "productId": "com.example.pro.monthly"}],
+            "subscriptionPricing": {"useSingleSubscriptionGroup": True},
+            "freeProAccessModel": {
+                "targetFreeAccessPercent": 75,
+                "targetProAccessPercent": 25,
+                "freeTier": {"features": ["Browse results", "Open summaries", "Save one item"]},
+                "proTier": {
+                    "features": ["Unlimited saved items", "Advanced readers", "External provider actions"],
+                    "lockedFeatureTypes": ["unlimited usage", "advanced readers", "provider actions"],
+                },
+                "paywall": {
+                    "timing": "afterFirstPersonalizedValue",
+                    "triggers": ["user taps a clearly labeled Pro action"],
+                    "principles": ["explain Pro value clearly", "keep terms and restore visible"],
+                },
+            },
+            "onboarding": {
+                "collectsPreferences": True,
+                "paywallTiming": "afterFirstPersonalizedValue",
+                "restorePurchasesVisible": True,
+                "termsAndPrivacyVisibleOnPaywall": True,
+            },
+            "reviewPromptPolicy": {
+                "usesStoreKitRequestReview": True,
+                "minimumDaysSinceInstall": 3,
+                "minimumSessions": 3,
+                "localCooldownDays": 120,
+                "positiveMomentTriggers": [{"event": "completed_goal", "afterSuccessfulUserOutcome": True}],
+                "blockedContexts": ["launch", "onboarding", "paywall", "error"],
+            },
+        }
+        result = cli.plan_growth_strategy(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertIn("freeProAccessModel.paywall.principles", fields)
+
     def test_growth_strategy_template_is_valid(self):
         cli = load_cli()
         config = json.loads(

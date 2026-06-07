@@ -131,6 +131,35 @@ CORE_LOOP_LOCKED_MARKERS = {
     "primary workflow",
     "all content",
 }
+VALUE_PREVIEW_MARKERS = {
+    "preview",
+    "taste",
+    "sample",
+    "first result",
+    "summary",
+    "useful",
+    "personalized content",
+    "personalized value",
+    "basic detail",
+    "core value",
+}
+PRO_DEPTH_MARKERS = {
+    "advanced",
+    "unlimited",
+    "deeper",
+    "deep",
+    "history",
+    "archive",
+    "export",
+    "insight",
+    "personalization",
+    "widget",
+    "external",
+    "provider",
+    "premium",
+    "detail",
+    "reader",
+}
 FIRST_TIME_SUBSCRIPTION_OK_STATUSES = {
     "approved",
     "in_review",
@@ -2632,6 +2661,16 @@ def validate_free_pro_access_model(config: dict[str, Any], issues: list[dict[str
                 "message": "List the high-intent features reserved for Pro, such as unlimited usage, advanced alerts, widgets, history, exports, insights, or premium personalization.",
             }
         )
+    else:
+        pro_feature_text = " ".join(item.lower() for item in pro_features)
+        if not any(marker in pro_feature_text for marker in PRO_DEPTH_MARKERS) and not custom_reason:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "freeProAccessModel.proTier.features",
+                    "message": "Pro features should focus on high-intent depth after a useful Free preview: unlimited use, advanced controls, deeper readers, history, exports, premium personalization, or external provider actions.",
+                }
+            )
 
     locked_feature_text = " ".join(str(item).lower() for item in as_list(pro_tier.get("lockedFeatureTypes")))
     if pro_tier.get("locksCoreLoop") is True:
@@ -2667,6 +2706,15 @@ def validate_free_pro_access_model(config: dict[str, Any], issues: list[dict[str
                 "severity": "warning",
                 "field": "freeProAccessModel.paywall.triggers",
                 "message": "Define paywall triggers such as reaching a generous free limit or tapping a clearly labeled Pro feature.",
+            }
+        )
+    principle_text = " ".join(str(item).lower() for item in as_list(paywall.get("principles")))
+    if not any(marker in principle_text for marker in VALUE_PREVIEW_MARKERS) and not custom_reason:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "freeProAccessModel.paywall.principles",
+                "message": "Document a preview-first Free path: users should see a useful result, sample, summary, or basic detail before Pro locks deeper readers, unlimited use, advanced personalization, exports, or provider actions.",
             }
         )
 

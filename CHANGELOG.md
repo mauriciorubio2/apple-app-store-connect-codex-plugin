@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.8] - 2026-06-07
+
+- Added value-preview Free/Pro guardrails so subscription plans document how users can taste each major value surface before Pro locks deeper actions.
+- Updated default templates to reserve Pro for high-intent depth, unlimited usage, advanced personalization, premium provider actions, and other conversion-driving actions after a useful preview.
+- Added validation warnings and tests for subscription plans that lack preview-first paywall principles.
+
 ## [1.14.7] - 2026-06-06
 
 - Added `verify-selected-build` to confirm the App Store Connect version has the expected processed build selected after upload.

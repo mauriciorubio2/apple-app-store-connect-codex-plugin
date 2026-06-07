@@ -493,7 +493,8 @@ For subscriptions and paid features:
 - Use weekly `$4.99`, monthly `$9.99`, and yearly `$29.99` as the default benchmark prices. Keep them flexible, but require a documented reason before changing the default pattern.
 - Configure the default introductory offer as a 14-day free trial (`duration=TWO_WEEKS`, `numberOfPeriods=1`, `offerMode=FREE_TRIAL`) on every weekly, monthly, and yearly product unless the builder records `customIntroOfferReason`.
 - Keep the app's core loop available on Free: basic browsing, search, personalization, status/detail views, and a sensible number of tracked items should not be blocked by default.
-- Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, or an ad-free experience when relevant.
+- When a screen or content category has Pro value, show a useful preview/taste first: first result, sample insight, artwork, basic detail, or summary. Then gate deeper readers, archives, unlimited use, exports, advanced personalization, or external provider/deep-link actions.
+- Reserve Pro for enticing but non-essential depth: unlimited usage, advanced alerts, widgets/live activities, history, analytics, exports, premium personalization, themes, automations, high-intent provider actions, or an ad-free experience when relevant.
 - If an app needs a different split, keep the plugin flexible: adjust `freeProAccessModel.targetFreeAccessPercent`, `targetProAccessPercent`, pricing products, paywall triggers, and add `customAccessSplitReason`.
 - Include localized subscription names and descriptions.
 - Include App Review screenshots for the paywall or purchased feature. For multi-plan paywalls, verify each subscription product has a visible, processed, plan-specific screenshot; do not reuse a yearly-selected screenshot for weekly or monthly unless `allowSharedReviewScreenshot` is intentionally documented.

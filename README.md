@@ -375,7 +375,9 @@ The bundled `subscription-onboarding-review-template.json` captures the release 
 
 Run access preflight first. `accessPreflight` requires a live App Store Connect probe plus a RevenueCat MCP `list_projects` probe before Codex applies metadata, pricing, products, offerings, screenshots, build uploads, or review submission changes. On failure, Codex should prompt for App Store Connect API-key setup or RevenueCat OAuth/API-key reauthorization, then retry the probe.
 
-By default, `freeProAccessModel` gives users a complete Free product experience with roughly 70-80% of useful functionality available before purchase. Pro should reserve the remaining high-intent 20-30%: unlimited usage, advanced alerts, widgets or live activities, deeper history/analytics, exports, premium personalization, themes, automations, or other power-user depth. The core loop should stay usable on Free so users get a real taste of the app.
+By default, `freeProAccessModel` gives users a complete Free product experience with roughly 70-80% of useful functionality available before purchase. Pro should reserve the remaining high-intent 20-30%: unlimited usage, advanced alerts, widgets or live activities, deeper history/analytics, exports, premium personalization, themes, automations, premium external/provider actions, or other power-user depth. The core loop should stay usable on Free so users get a real taste of the app.
+
+When a screen or category has Pro value, lead with a useful preview instead of a dead lock. Show the first result, summary, artwork, sample insight, or basic detail whenever possible, then gate deeper readers, archives, unlimited use, exports, advanced personalization, or provider/deep-link actions. This keeps Free generous while still making the Pro upgrade feel logical.
 
 Creators can still change the setup. Set `creatorCanOverride` to true, adjust `targetFreeAccessPercent`/`targetProAccessPercent`, and add `customAccessSplitReason` when a different access split or pricing model is intentional.
 

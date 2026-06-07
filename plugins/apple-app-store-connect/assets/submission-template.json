@@ -177,6 +177,7 @@
         "Use the main planning, browsing, or tracking workflow",
         "Create and manage a sensible number of core items",
         "View basic status, details, reminders, or progress",
+        "Preview each major content category, insight, or workflow enough to understand the value",
         "Use onboarding personalization and core search/filter tools",
         "Continue using the app without subscribing"
       ],
@@ -192,14 +193,16 @@
         "Unlimited saved items, routines, projects, favorites, or tracked alerts",
         "Advanced reminders, notifications, widgets, or live/lock-screen experiences",
         "Deeper analytics, history, archives, exports, or comparisons",
-        "Premium personalization, themes, automations, or power-user workflows"
+        "Premium personalization, themes, automations, or power-user workflows",
+        "High-intent external provider actions or deep links after the user has seen a useful preview"
       ],
       "lockedFeatureTypes": [
         "unlimited usage",
         "advanced alerts",
         "widgets or live activities",
         "advanced history and insights",
-        "premium personalization"
+        "premium personalization",
+        "premium external or provider actions"
       ],
       "locksCoreLoop": false
     },
@@ -212,6 +215,8 @@
       ],
       "principles": [
         "keep a visible free path when possible",
+        "show useful previews, samples, summaries, or basic details before locking deeper Pro actions",
+        "lock high-intent depth, unlimited use, advanced personalization, exports, or provider actions rather than the first useful result",
         "explain Pro value in app-specific terms",
         "show trial, renewal, cancellation, restore, terms, and privacy context"
       ]
