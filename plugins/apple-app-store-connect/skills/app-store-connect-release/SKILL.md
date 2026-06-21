@@ -266,12 +266,14 @@ Before uploading an iOS `.ipa`, verify the binary artifact itself has the expect
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/App.xcarchive \
   --expect-bundle-id com.example.product \
-  --expect-platform iPhoneOS
+  --expect-platform iPhoneOS \
+  --require-purpose-string NSHealthUpdateUsageDescription
 
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/App.ipa \
   --expect-bundle-id com.example.product \
-  --expect-platform iPhoneOS
+  --expect-platform iPhoneOS \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
 After the upload processes, verify that the App Store Connect version has selected the same processed build whose local archive or IPA passed the asset-catalog check:
@@ -292,7 +294,8 @@ For macOS archives, use `MacOSX` as the expected platform. The verifier reads th
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/App-macOS.xcarchive \
   --expect-bundle-id com.example.product \
-  --expect-platform MacOSX
+  --expect-platform MacOSX \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
 After exporting a macOS `.pkg`, verify the delivered package too. The verifier expands the package and inspects the embedded `.app`, so missing compiled asset catalogs are caught before upload:
@@ -301,10 +304,11 @@ After exporting a macOS `.pkg`, verify the delivered package too. The verifier e
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/App.pkg \
   --expect-bundle-id com.example.product \
-  --expect-platform MAC_OS
+  --expect-platform MAC_OS \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
-Treat missing `Assets.car`, a bundle mismatch, or an unexpected platform as a hard upload blocker. Missing `Assets.car` can trigger `ITMS-90546: Missing asset catalog` after delivery.
+Treat missing `Assets.car`, a bundle mismatch, an unexpected platform, or a missing required privacy purpose string as a hard upload blocker. Missing `Assets.car` can trigger `ITMS-90546: Missing asset catalog`; missing HealthKit or other privacy purpose strings can trigger `ITMS-90683: Missing purpose string` after delivery. If a build declares `NSHealthShareUsageDescription`, the plugin expects `NSHealthUpdateUsageDescription` too unless the release config deliberately verifies a different required-purpose set.
 
 Use this upload fallback order:
 
@@ -363,7 +367,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --file build/App.ipa \
   --version-string 1.0.0 \
   --build-number 42 \
-  --expect-bundle-id com.example.product
+  --expect-bundle-id com.example.product \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
 Automatic-version upload dry run:
@@ -374,7 +379,8 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --file build/App.ipa \
   --auto-version \
   --project-dir . \
-  --expect-bundle-id com.example.product
+  --expect-bundle-id com.example.product \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
 Confirmed API upload:
@@ -386,6 +392,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --version-string 1.0.0 \
   --build-number 42 \
   --expect-bundle-id com.example.product \
+  --require-purpose-string NSHealthUpdateUsageDescription \
   --wait 1800 \
   --yes
 ```
@@ -410,7 +417,8 @@ Transporter fallback:
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-transporter \
   --file build/App.ipa \
-  --expect-bundle-id com.example.product
+  --expect-bundle-id com.example.product \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
 Use the build relationship in `version.buildId` after Apple finishes processing the build.
@@ -424,6 +432,7 @@ When the user wants an iOS app and a native macOS app to stay independent but ex
 - If the Mac app must be a separate app record or legacy Mac configuration, create separate Apple product IDs for Mac, but map them to equivalent RevenueCat packages and the same entitlement/offering so user-facing access and paywall behavior stay aligned.
 - Keep shared app logic, product IDs, entitlement identifiers, paywall copy, pricing, restore behavior, and App Review subscription evidence in a shared code/config layer where the app architecture allows it. Let Mac differ in desktop interaction details such as windows, sidebars, keyboard shortcuts, toolbar controls, and `APP_DESKTOP` screenshots.
 - Record the decision in `crossPlatformRelease`: source/target platforms, `distributionModel`, whether the app uses the shared Apple app record, whether subscription product IDs are shared or mapped, and source links reviewed on the release date.
+- When the user wants iOS and macOS app updates to stay aligned, record `crossPlatformRelease.versionConsistency.platforms` with each platform's `versionString` and `buildNumber`, and set `requireSameVersionString` or `requireSameBuildNumber` before upload.
 
 For RevenueCat with iOS + macOS:
 

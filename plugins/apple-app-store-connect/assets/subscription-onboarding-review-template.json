@@ -34,6 +34,22 @@
     "sameSubscriptionGroupAndProductIds": true,
     "separatePlatformProductIds": false,
     "platformProductMapping": [],
+    "versionConsistency": {
+      "requireSameVersionString": true,
+      "requireSameBuildNumber": false,
+      "platforms": [
+        {
+          "platform": "IOS",
+          "versionString": "",
+          "buildNumber": ""
+        },
+        {
+          "platform": "MAC_OS",
+          "versionString": "",
+          "buildNumber": ""
+        }
+      ]
+    },
     "desktopOptimizationRequired": true,
     "experienceParityPolicy": "Keep pricing, paywall copy, entitlement behavior, restore purchases, and premium feature access consistent while allowing desktop-specific navigation, keyboard, window, and screenshot treatment.",
     "macOS": {

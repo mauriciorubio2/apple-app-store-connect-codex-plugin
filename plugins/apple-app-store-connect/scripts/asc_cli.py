@@ -118,6 +118,22 @@ BLOCKED_REVIEW_CONTEXTS = {
     "user_tapped_rate_us",
 }
 EARLY_PAYWALL_TIMINGS = {"launch", "first_launch", "firstlaunch", "before_value", "beforevalue", "before_onboarding"}
+KNOWN_PURPOSE_STRING_KEYS = {
+    "NSCameraUsageDescription",
+    "NSFaceIDUsageDescription",
+    "NSHealthClinicalHealthRecordsShareUsageDescription",
+    "NSHealthShareUsageDescription",
+    "NSHealthUpdateUsageDescription",
+    "NSLocationAlwaysAndWhenInUseUsageDescription",
+    "NSLocationAlwaysUsageDescription",
+    "NSLocationWhenInUseUsageDescription",
+    "NSMicrophoneUsageDescription",
+    "NSMotionUsageDescription",
+    "NSPhotoLibraryAddUsageDescription",
+    "NSPhotoLibraryUsageDescription",
+    "NSUserTrackingUsageDescription",
+}
+HEALTHKIT_PURPOSE_STRING_PAIR = ("NSHealthShareUsageDescription", "NSHealthUpdateUsageDescription")
 CORE_LOOP_LOCKED_MARKERS = {
     "core loop",
     "basic browse",
@@ -249,6 +265,11 @@ def summarize_app_info(
     assets_car_path: str | None,
 ) -> dict[str, Any]:
     info = info or {}
+    purpose_strings = {
+        key: info.get(key)
+        for key in sorted(KNOWN_PURPOSE_STRING_KEYS)
+        if str(info.get(key) or "").strip()
+    }
     return {
         "path": path,
         "bundleIdentifier": info.get("CFBundleIdentifier"),
@@ -256,6 +277,7 @@ def summarize_app_info(
         "bundleVersion": info.get("CFBundleVersion"),
         "supportedPlatforms": info.get("CFBundleSupportedPlatforms", []),
         "minimumOSVersion": info.get("MinimumOSVersion") or info.get("LSMinimumSystemVersion"),
+        "purposeStrings": purpose_strings,
         "infoPlistPresent": bool(info),
         "infoPlistPath": info_plist_path,
         "assetsCarPresent": assets_car_present,
@@ -370,17 +392,51 @@ def ipa_app_summaries(path: Path) -> list[dict[str, Any]]:
     return summaries
 
 
+def normalize_required_purpose_strings(required_purpose_strings: list[str] | None) -> list[str]:
+    normalized: list[str] = []
+    for value in required_purpose_strings or []:
+        for item in str(value).split(","):
+            key = item.strip()
+            if key and key not in normalized:
+                normalized.append(key)
+    return normalized
+
+
+def purpose_string_issues(app: dict[str, Any], field: str, required_purpose_strings: list[str]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    purpose_strings = app.get("purposeStrings") or {}
+    required = normalize_required_purpose_strings(required_purpose_strings)
+    health_share_key, health_update_key = HEALTHKIT_PURPOSE_STRING_PAIR
+    if purpose_strings.get(health_share_key) and not purpose_strings.get(health_update_key):
+        required.append(health_update_key)
+    for key in sorted(set(required)):
+        if not purpose_strings.get(key):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"{field}.Info.plist.{key}",
+                    "message": (
+                        f"Missing {key} purpose string in Info.plist. Uploading this binary can trigger "
+                        "ITMS-90683: Missing purpose string."
+                    ),
+                }
+            )
+    return issues
+
+
 def verify_build_assets(
     path: str | Path,
     *,
     expect_bundle_id: str | None = None,
     expect_platform: str | None = None,
     require_assets_car: bool = True,
+    required_purpose_strings: list[str] | None = None,
 ) -> dict[str, Any]:
     artifact = Path(path).expanduser()
     normalized_expect_platform = normalize_expected_platform(expect_platform)
     issues: list[dict[str, Any]] = []
     apps: list[dict[str, Any]] = []
+    required_purpose_strings = normalize_required_purpose_strings(required_purpose_strings)
 
     if not artifact.exists():
         issues.append(
@@ -450,6 +506,7 @@ def verify_build_assets(
                     "message": "Missing Assets.car in the app bundle. Uploading this binary can trigger ITMS-90546: Missing asset catalog.",
                 }
             )
+        issues.extend(purpose_string_issues(app, field, required_purpose_strings))
 
     errors = [issue for issue in issues if issue["severity"] == "error"]
     return {
@@ -459,6 +516,7 @@ def verify_build_assets(
         "expectBundleId": expect_bundle_id,
         "expectPlatform": normalized_expect_platform,
         "requireAssetsCar": require_assets_car,
+        "requiredPurposeStrings": required_purpose_strings,
         "errorCount": len(errors),
         "issues": issues,
         "apps": apps,
@@ -478,6 +536,7 @@ def verify_upload_binary_assets_if_needed(args: argparse.Namespace, file_path: P
         expect_bundle_id=getattr(args, "expect_bundle_id", None),
         expect_platform=getattr(args, "expect_platform", None) or default_expected_platform_for_upload(platform),
         require_assets_car=True,
+        required_purpose_strings=getattr(args, "required_purpose_strings", None),
     )
     if not check["ok"]:
         messages = "; ".join(issue["message"] for issue in check["issues"] if issue["severity"] == "error")
@@ -3054,6 +3113,145 @@ def validate_cross_platform_revenuecat_strategy(config: dict[str, Any], issues: 
         )
 
 
+def cross_platform_version_entries(config: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    cross_platform = config.get("crossPlatformRelease") or config.get("universalPurchase") or {}
+    consistency = cross_platform.get("versionConsistency") or config.get("versionConsistency") or {}
+    raw_entries = (
+        consistency.get("platforms")
+        or consistency.get("platformVersions")
+        or cross_platform.get("platformVersions")
+        or []
+    )
+    entries: list[dict[str, str]] = []
+    for entry in as_list(raw_entries):
+        if not isinstance(entry, dict):
+            continue
+        platform = str(entry.get("platform") or entry.get("applePlatform") or "").upper().strip()
+        version_string = str(
+            entry.get("versionString")
+            or entry.get("marketingVersion")
+            or entry.get("bundleShortVersion")
+            or entry.get("CFBundleShortVersionString")
+            or ""
+        ).strip()
+        build_number = str(
+            entry.get("buildNumber")
+            or entry.get("bundleVersion")
+            or entry.get("CFBundleVersion")
+            or ""
+        ).strip()
+        if platform or version_string or build_number:
+            entries.append(
+                {
+                    "platform": platform,
+                    "versionString": version_string,
+                    "buildNumber": build_number,
+                }
+            )
+    return consistency, entries
+
+
+def validate_cross_platform_version_consistency(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    consistency, entries = cross_platform_version_entries(config)
+    if not consistency and not entries:
+        return
+
+    require_same_version = consistency.get("requireSameVersionString", True) is not False
+    require_same_build = consistency.get("requireSameBuildNumber", False) is True
+    app_platform = str((config.get("app") or {}).get("platform") or "").upper().strip()
+    current_version = str((config.get("version") or {}).get("versionString") or "").strip()
+    current_build = str((config.get("build") or {}).get("buildNumber") or "").strip()
+    current_entry = next((entry for entry in entries if entry.get("platform") == app_platform), None)
+
+    if current_entry:
+        if current_version and current_entry.get("versionString") and current_entry["versionString"] != current_version:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "crossPlatformRelease.versionConsistency.platforms",
+                    "message": (
+                        f"{app_platform} versionConsistency declares {current_entry['versionString']} "
+                        f"but version.versionString is {current_version}."
+                    ),
+                }
+            )
+        if current_build and current_entry.get("buildNumber") and current_entry["buildNumber"] != current_build:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "crossPlatformRelease.versionConsistency.platforms",
+                    "message": (
+                        f"{app_platform} versionConsistency declares build {current_entry['buildNumber']} "
+                        f"but build.buildNumber is {current_build}."
+                    ),
+                }
+            )
+
+    if len(entries) < 2:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "crossPlatformRelease.versionConsistency.platforms",
+                "message": "Add both iOS and macOS version/build entries before declaring cross-platform version consistency.",
+            }
+        )
+        return
+
+    missing_platforms = [entry for entry in entries if not entry.get("platform")]
+    if missing_platforms:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "crossPlatformRelease.versionConsistency.platforms.platform",
+                "message": "Each version consistency entry should name the Apple platform, for example IOS or MAC_OS.",
+            }
+        )
+
+    if require_same_version:
+        versions = {entry["versionString"] for entry in entries if entry.get("versionString")}
+        if len(versions) > 1:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "crossPlatformRelease.versionConsistency.platforms.versionString",
+                    "message": (
+                        "iOS and macOS App Store update versions must match for this cross-platform release; "
+                        f"found {', '.join(sorted(versions))}."
+                    ),
+                }
+            )
+        if any(not entry.get("versionString") for entry in entries):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "crossPlatformRelease.versionConsistency.platforms.versionString",
+                    "message": "Record each platform's App Store version string before release upload.",
+                }
+            )
+
+    if require_same_build:
+        builds = {entry["buildNumber"] for entry in entries if entry.get("buildNumber")}
+        if len(builds) > 1:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "crossPlatformRelease.versionConsistency.platforms.buildNumber",
+                    "message": (
+                        "iOS and macOS build numbers must match for this cross-platform release; "
+                        f"found {', '.join(sorted(builds))}."
+                    ),
+                }
+            )
+        if any(not entry.get("buildNumber") for entry in entries):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "crossPlatformRelease.versionConsistency.platforms.buildNumber",
+                    "message": "Record each platform's build number before release upload.",
+                }
+            )
+
+
 def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
     policy = config.get("reviewPromptPolicy") or {}
     if not policy:
@@ -3254,6 +3452,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     validate_revenuecat_integration(config, issues)
     validate_platform_release_strategy(config, issues)
     validate_cross_platform_revenuecat_strategy(config, issues)
+    validate_cross_platform_version_consistency(config, issues)
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
@@ -3918,6 +4117,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     validate_revenuecat_integration(config, issues)
     validate_platform_release_strategy(config, issues)
     validate_cross_platform_revenuecat_strategy(config, issues)
+    validate_cross_platform_version_consistency(config, issues)
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
@@ -4017,6 +4217,17 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "revenueCatProjectId": revenuecat.get("projectId"),
                 "entitlementIdentifier": revenuecat.get("entitlementIdentifier"),
                 "offeringIdentifier": revenuecat.get("offeringIdentifier"),
+            }
+        )
+    version_consistency, version_entries = cross_platform_version_entries(config)
+    if version_consistency or version_entries:
+        actions.append(
+            {
+                "action": "VERIFY",
+                "resource": "iOS/macOS App Store version consistency",
+                "requireSameVersionString": version_consistency.get("requireSameVersionString", True),
+                "requireSameBuildNumber": version_consistency.get("requireSameBuildNumber", False),
+                "platforms": version_entries,
             }
         )
     app_info = config.get("appInfo", {})
@@ -5342,6 +5553,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not fail when Assets.car is missing. Use only for unusual non-iOS diagnostics.",
     )
+    binary_assets.add_argument(
+        "--require-purpose-string",
+        dest="required_purpose_strings",
+        action="append",
+        help="Require an Info.plist privacy purpose string key, for example NSHealthUpdateUsageDescription. May be repeated.",
+    )
 
     selected_build = sub.add_parser(
         "verify-selected-build",
@@ -5383,6 +5600,12 @@ def build_parser() -> argparse.ArgumentParser:
     upload.add_argument("--expect-bundle-id", help="Expected CFBundleIdentifier for iOS IPA preflight.")
     upload.add_argument("--expect-platform", default="iPhoneOS", help="Expected iOS platform for IPA preflight.")
     upload.add_argument(
+        "--require-purpose-string",
+        dest="required_purpose_strings",
+        action="append",
+        help="Require an Info.plist privacy purpose string key in the inspected app bundle before upload.",
+    )
+    upload.add_argument(
         "--skip-binary-asset-check",
         action="store_true",
         help="Skip the iOS IPA or macOS PKG Assets.car preflight. Use only when a separate binary validation has already passed.",
@@ -5397,6 +5620,12 @@ def build_parser() -> argparse.ArgumentParser:
     transporter.add_argument("--platform", default="IOS")
     transporter.add_argument("--expect-bundle-id", help="Expected CFBundleIdentifier for iOS IPA preflight.")
     transporter.add_argument("--expect-platform", default="iPhoneOS", help="Expected iOS platform for IPA preflight.")
+    transporter.add_argument(
+        "--require-purpose-string",
+        dest="required_purpose_strings",
+        action="append",
+        help="Require an Info.plist privacy purpose string key in the inspected app bundle before upload.",
+    )
     transporter.add_argument(
         "--skip-binary-asset-check",
         action="store_true",
@@ -5500,6 +5729,7 @@ def main(argv: list[str] | None = None) -> int:
                     expect_bundle_id=args.expect_bundle_id,
                     expect_platform=args.expect_platform or None,
                     require_assets_car=not args.allow_missing_assets_car,
+                    required_purpose_strings=args.required_purpose_strings,
                 )
             )
         elif args.command == "verify-selected-build":

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.9] - 2026-06-21
+
+- Added Info.plist privacy purpose-string checks to `verify-build-assets`, `upload-build-api`, and `upload-build-transporter`, including a HealthKit share/update pairing guard for `ITMS-90683: Missing purpose string`.
+- Added `--require-purpose-string` so release runs can require keys such as `NSHealthUpdateUsageDescription` before build upload.
+- Added cross-platform version consistency validation and release-plan output so iOS and macOS update versions, and optionally build numbers, can be kept aligned before upload.
+
 ## [1.14.8] - 2026-06-07
 
 - Added value-preview Free/Pro guardrails so subscription plans document how users can taste each major value surface before Pro locks deeper actions.

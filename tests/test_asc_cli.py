@@ -585,6 +585,7 @@ class AscCliValidationTests(unittest.TestCase):
                         "CFBundleVersion": "42",
                         "CFBundleSupportedPlatforms": ["MacOSX"],
                         "LSMinimumSystemVersion": "14.0",
+                        "NSHealthUpdateUsageDescription": "Save activity.",
                     },
                     file,
                 )
@@ -593,8 +594,11 @@ class AscCliValidationTests(unittest.TestCase):
                 root / "Example.xcarchive",
                 expect_bundle_id="com.example.product",
                 expect_platform="MacOSX",
+                required_purpose_strings=["NSHealthUpdateUsageDescription"],
             )
         self.assertTrue(result["ok"])
+        self.assertEqual(result["apps"][0]["bundleShortVersion"], "1.0.0")
+        self.assertEqual(result["apps"][0]["purposeStrings"]["NSHealthUpdateUsageDescription"], "Save activity.")
         self.assertEqual(result["apps"][0]["minimumOSVersion"], "14.0")
         self.assertTrue(result["apps"][0]["infoPlistPath"].endswith("Contents/Info.plist"))
         self.assertTrue(result["apps"][0]["assetsCarPath"].endswith("Contents/Resources/Assets.car"))
@@ -615,6 +619,7 @@ class AscCliValidationTests(unittest.TestCase):
                         "CFBundleVersion": "42",
                         "CFBundleSupportedPlatforms": ["MacOSX"],
                         "LSMinimumSystemVersion": "14.0",
+                        "NSHealthUpdateUsageDescription": "Save activity.",
                     },
                     file,
                 )
@@ -630,10 +635,12 @@ class AscCliValidationTests(unittest.TestCase):
                         pkg,
                         expect_bundle_id="com.example.product",
                         expect_platform="MAC_OS",
+                        required_purpose_strings=["NSHealthUpdateUsageDescription"],
                     )
         self.assertTrue(result["ok"])
         self.assertEqual(result["expectPlatform"], "MacOSX")
         self.assertTrue(result["apps"][0]["assetsCarPresent"])
+        self.assertEqual(result["apps"][0]["purposeStrings"]["NSHealthUpdateUsageDescription"], "Save activity.")
 
     def test_verify_build_assets_rejects_macos_pkg_missing_assets_car(self):
         cli = load_cli()
@@ -667,7 +674,6 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["expectPlatform"], "MacOSX")
         self.assertIn("Assets.car", result["issues"][0]["field"])
-
     def test_verify_build_assets_rejects_ios_ipa_missing_assets_car(self):
         cli = load_cli()
         with tempfile.TemporaryDirectory() as tmp:
@@ -692,6 +698,59 @@ class AscCliValidationTests(unittest.TestCase):
             )
         self.assertFalse(result["ok"])
         self.assertIn("Assets.car", result["issues"][0]["field"])
+
+    def test_verify_build_assets_rejects_health_share_without_update_purpose_string(self):
+        cli = load_cli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app = root / "Example.xcarchive" / "Products" / "Applications" / "Example.app"
+            app.mkdir(parents=True)
+            with (app / "Info.plist").open("wb") as file:
+                plistlib.dump(
+                    {
+                        "CFBundleIdentifier": "com.example.product",
+                        "CFBundleShortVersionString": "1.0.0",
+                        "CFBundleVersion": "42",
+                        "CFBundleSupportedPlatforms": ["iPhoneOS"],
+                        "NSHealthShareUsageDescription": "Read steps.",
+                    },
+                    file,
+                )
+            (app / "Assets.car").write_bytes(b"compiled assets")
+            result = cli.verify_build_assets(root / "Example.xcarchive")
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("NSHealthUpdateUsageDescription" in issue["field"] for issue in result["issues"])
+        )
+
+    def test_verify_build_assets_accepts_required_health_update_purpose_string(self):
+        cli = load_cli()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            app = root / "Example.xcarchive" / "Products" / "Applications" / "Example.app"
+            app.mkdir(parents=True)
+            with (app / "Info.plist").open("wb") as file:
+                plistlib.dump(
+                    {
+                        "CFBundleIdentifier": "com.example.product",
+                        "CFBundleShortVersionString": "1.0.0",
+                        "CFBundleVersion": "42",
+                        "CFBundleSupportedPlatforms": ["iPhoneOS"],
+                        "NSHealthShareUsageDescription": "Read steps.",
+                        "NSHealthUpdateUsageDescription": "Save activity.",
+                    },
+                    file,
+                )
+            (app / "Assets.car").write_bytes(b"compiled assets")
+            result = cli.verify_build_assets(
+                root / "Example.xcarchive",
+                required_purpose_strings=["NSHealthUpdateUsageDescription"],
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["apps"][0]["purposeStrings"]["NSHealthUpdateUsageDescription"],
+            "Save activity.",
+        )
 
     def test_verify_selected_build_accepts_valid_selected_artifact_build(self):
         cli = load_cli()
@@ -746,6 +805,53 @@ class AscCliValidationTests(unittest.TestCase):
         result = cli.verify_selected_build(args, SelectedBuildClient(selected_build="42"))
         self.assertFalse(result["ok"])
         self.assertIn("build.version", {issue["field"] for issue in result["issues"]})
+
+    def test_cross_platform_version_consistency_rejects_mismatch(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "version": {"versionString": "1.0.1"},
+            "build": {"buildNumber": "12"},
+            "crossPlatformRelease": {
+                "versionConsistency": {
+                    "requireSameVersionString": True,
+                    "requireSameBuildNumber": True,
+                    "platforms": [
+                        {"platform": "IOS", "versionString": "1.0.1", "buildNumber": "12"},
+                        {"platform": "MAC_OS", "versionString": "1.0.2", "buildNumber": "13"},
+                    ],
+                }
+            },
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"] if issue["severity"] == "error"}
+        self.assertFalse(result["ok"])
+        self.assertIn("crossPlatformRelease.versionConsistency.platforms.versionString", fields)
+        self.assertIn("crossPlatformRelease.versionConsistency.platforms.buildNumber", fields)
+
+    def test_cross_platform_version_consistency_accepts_matching_platforms(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "version": {"versionString": "1.0.1"},
+            "build": {"buildNumber": "12"},
+            "crossPlatformRelease": {
+                "versionConsistency": {
+                    "requireSameVersionString": True,
+                    "requireSameBuildNumber": True,
+                    "platforms": [
+                        {"platform": "IOS", "versionString": "1.0.1", "buildNumber": "12"},
+                        {"platform": "MAC_OS", "versionString": "1.0.1", "buildNumber": "12"},
+                    ],
+                }
+            },
+        }
+        result = cli.validate_submission_config(config)
+        self.assertTrue(result["ok"])
+        plan = cli.plan_submission(config)
+        self.assertTrue(
+            any(action["resource"] == "iOS/macOS App Store version consistency" for action in plan["actions"])
+        )
 
     def test_ip_review_warns_when_independent_app_disclaimers_are_missing(self):
         cli = load_cli()

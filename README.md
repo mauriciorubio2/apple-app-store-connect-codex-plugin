@@ -279,16 +279,18 @@ xcodebuild -project MyApp.xcodeproj \
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/MyApp.xcarchive \
   --expect-bundle-id com.example.product \
-  --expect-platform iPhoneOS
+  --expect-platform iPhoneOS \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
-After exporting the `.ipa`, run the same check on the file that will be uploaded. A missing `Assets.car`, bundle mismatch, or wrong platform is a release blocker because it can produce App Store processing failures such as `ITMS-90546: Missing asset catalog`.
+After exporting the `.ipa`, run the same check on the file that will be uploaded. A missing `Assets.car`, bundle mismatch, wrong platform, or missing required privacy purpose string is a release blocker because it can produce App Store processing failures such as `ITMS-90546: Missing asset catalog` or `ITMS-90683: Missing purpose string`.
 
 ```bash
 python3 plugins/apple-app-store-connect/scripts/asc_cli.py verify-build-assets \
   --path build/MyApp.ipa \
   --expect-bundle-id com.example.product \
-  --expect-platform iPhoneOS
+  --expect-platform iPhoneOS \
+  --require-purpose-string NSHealthUpdateUsageDescription
 ```
 
 After the upload processes, verify that App Store Connect selected the same processed build you just checked locally. This catches stale selections such as an older rejected build still attached to the version:
@@ -328,6 +330,7 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --version-string 1.0.0 \
   --build-number 42 \
   --expect-bundle-id com.example.product \
+  --require-purpose-string NSHealthUpdateUsageDescription \
   --wait 1800 \
   --yes
 ```
@@ -357,11 +360,12 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
   --project-dir /path/to/MyApp \
   --iteration-count 7 \
   --expect-bundle-id com.example.product \
+  --require-purpose-string NSHealthUpdateUsageDescription \
   --wait 1800 \
   --yes
 ```
 
-`upload-build-api` and `upload-build-transporter` automatically run the iOS `.ipa` and macOS `.pkg` asset-catalog preflight unless `--skip-binary-asset-check` is deliberately supplied after a separate verification has already passed.
+`upload-build-api` and `upload-build-transporter` automatically run the iOS `.ipa` and macOS `.pkg` asset-catalog and purpose-string preflight unless `--skip-binary-asset-check` is deliberately supplied after a separate verification has already passed. If an app declares `NSHealthShareUsageDescription`, the preflight also expects `NSHealthUpdateUsageDescription` so HealthKit-enabled builds do not reach App Store processing with an incomplete purpose-string pair.
 
 ## Versioning Behavior
 
@@ -384,6 +388,23 @@ Creators can still change the setup. Set `creatorCanOverride` to true, adjust `t
 Pricing research belongs beside the subscription setup. Keep `pricingResearch.lastReviewedOn`, `reviewIntervalMonths`, `nextReviewDue`, and `sources` current. The plugin defaults to a six-month review cycle because plan-duration benchmarks, competitive price anchors, category willingness to pay, and conversion patterns change regularly. The default price anchors are weekly `$4.99`, monthly `$9.99`, and yearly `$29.99`; add `customPriceReason`, `customCadenceReason`, or `customIntroOfferReason` when a different launch setup is intentional.
 
 For iOS + macOS releases, record `crossPlatformRelease` and `revenueCatIntegration.crossPlatform`. When the Mac app is a universal-purchase platform version of the same product, use the same App Store app record, bundle ID, subscription group/products, RevenueCat project, entitlement, offering, and package identifiers. If the Mac app is separate, provide a platform product mapping and attach equivalent products to the same RevenueCat packages/entitlement. Use `preserveCurrentPrice` and `preserveCurrentIntroductoryOffer` when a platform release should intentionally reuse existing prices and trials without posting new pricing changes.
+
+When both platforms should ship as the same App Store update, add a version contract to the submission config:
+
+```json
+{
+  "crossPlatformRelease": {
+    "versionConsistency": {
+      "requireSameVersionString": true,
+      "requireSameBuildNumber": true,
+      "platforms": [
+        { "platform": "IOS", "versionString": "1.0.1", "buildNumber": "12" },
+        { "platform": "MAC_OS", "versionString": "1.0.1", "buildNumber": "12" }
+      ]
+    }
+  }
+}
+```
 
 Default paywalls should use `Start 14-day free trial` as the primary CTA and show `✓ No payment due now` below the button only when StoreKit or RevenueCat confirms the selected product has a real free-trial introductory offer.
 
