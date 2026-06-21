@@ -50,6 +50,46 @@
         }
       ]
     },
+    "descriptionConsistency": {
+      "requireSameDescription": true,
+      "platforms": [
+        {
+          "platform": "IOS",
+          "locale": "en-US",
+          "versionLocalizationId": "ios-version-localization-id",
+          "description": "Example App gives users a useful personalized event experience before Pro unlocks deeper alerts, widgets, history, and insights."
+        },
+        {
+          "platform": "MAC_OS",
+          "locale": "en-US",
+          "versionLocalizationId": "macos-version-localization-id",
+          "description": "Example App gives users a useful personalized event experience before Pro unlocks deeper alerts, widgets, history, and insights."
+        }
+      ]
+    },
+    "screenshotSync": {
+      "uiChangedSinceLastSubmission": false,
+      "requiresFreshScreenshotsWhenUiChanged": true,
+      "preserveScreenshotRules": true,
+      "platforms": [
+        {
+          "platform": "IOS",
+          "displayTypes": [
+            "APP_IPHONE_67"
+          ],
+          "updatedFromLatestUi": true,
+          "uploadedToAppStoreConnect": true
+        },
+        {
+          "platform": "MAC_OS",
+          "displayTypes": [
+            "APP_DESKTOP"
+          ],
+          "updatedFromLatestUi": true,
+          "uploadedToAppStoreConnect": true
+        }
+      ]
+    },
     "desktopOptimizationRequired": true,
     "experienceParityPolicy": "Keep pricing, paywall copy, entitlement behavior, restore purchases, and premium feature access consistent while allowing desktop-specific navigation, keyboard, window, and screenshot treatment.",
     "macOS": {

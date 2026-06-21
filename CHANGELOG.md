@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.11] - 2026-06-22
+
+- Added iOS/macOS App Store description consistency checks so same-version platform releases verify matching localized descriptions before readiness.
+- Added cross-platform screenshot freshness checks that require refreshed and uploaded iOS and macOS screenshots when UI changes are part of a same-version release.
+- Updated templates and release guidance so refreshed screenshots keep the existing App Store screenshot rules for current UI, legibility, paid-feature labels, and no price/free/trial/no-payment overlay copy.
+
 ## [1.14.10] - 2026-06-22
 
 - Added build-compliance automation so processed uploads are patched with `usesNonExemptEncryption=false`, matching App Encryption Documentation option `None of the algorithms mentioned above`.

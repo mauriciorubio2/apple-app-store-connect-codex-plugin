@@ -416,6 +416,24 @@ When both platforms should ship as the same App Store update, add a version cont
 }
 ```
 
+Same-version iOS/macOS releases should also keep localized App Store descriptions aligned. Add `descriptionConsistency` entries for every locale being shipped; the validator treats mismatched iOS/macOS descriptions as a blocker:
+
+```json
+{
+  "crossPlatformRelease": {
+    "descriptionConsistency": {
+      "requireSameDescription": true,
+      "platforms": [
+        { "platform": "IOS", "locale": "en-US", "description": "The shared App Store description." },
+        { "platform": "MAC_OS", "locale": "en-US", "description": "The shared App Store description." }
+      ]
+    }
+  }
+}
+```
+
+When UI changed, refresh screenshots for both platform pages before calling the release ready. Record `screenshotSync.uiChangedSinceLastSubmission: true`, include iOS display targets such as `APP_IPHONE_67`, include macOS `APP_DESKTOP`, and mark each platform as generated from the latest UI and uploaded to App Store Connect. The screenshot refresh must keep the existing public screenshot rules: current real UI, readable compositions, paid/Pro labels where needed, bright App Store-safe backgrounds, and no price/free/trial/discount/no-payment overlay copy.
+
 Default paywalls should use `Start 14-day free trial` as the primary CTA and show `✓ No payment due now` below the button only when StoreKit or RevenueCat confirms the selected product has a real free-trial introductory offer.
 
 First-time IAP/subscription products need extra release evidence when they are still `READY_TO_SUBMIT`. Upload and select the processed build, select the products with the app version in App Store Connect's website UI when Apple requires it, and record the confirmation in `firstTimeSubscriptionSubmission`. Do not call the release ready while products are still waiting for first review without that selected-version evidence.

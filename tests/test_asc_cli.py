@@ -892,6 +892,113 @@ class AscCliValidationTests(unittest.TestCase):
             any(action["resource"] == "iOS/macOS App Store version consistency" for action in plan["actions"])
         )
 
+    def test_cross_platform_description_consistency_rejects_mismatch(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS", "primaryLocale": "en-US"},
+            "crossPlatformRelease": {
+                "applePlatforms": ["IOS", "MAC_OS"],
+                "descriptionConsistency": {
+                    "requireSameDescription": True,
+                    "platforms": [
+                        {"platform": "IOS", "locale": "en-US", "description": "Plan calm days."},
+                        {"platform": "MAC_OS", "locale": "en-US", "description": "Track focused work."},
+                    ],
+                },
+            },
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"] if issue["severity"] == "error"}
+        self.assertFalse(result["ok"])
+        self.assertIn("crossPlatformRelease.descriptionConsistency.platforms.description", fields)
+        plan = cli.plan_submission(config)
+        self.assertTrue(
+            any(action["resource"] == "iOS/macOS App Store description consistency" for action in plan["actions"])
+        )
+
+    def test_cross_platform_screenshot_sync_blocks_stale_ui_screenshots(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS"},
+            "crossPlatformRelease": {
+                "applePlatforms": ["IOS", "MAC_OS"],
+                "screenshotSync": {
+                    "uiChangedSinceLastSubmission": True,
+                    "preserveScreenshotRules": True,
+                    "platforms": [
+                        {
+                            "platform": "IOS",
+                            "displayTypes": ["APP_IPHONE_67"],
+                            "updatedFromLatestUi": True,
+                            "uploadedToAppStoreConnect": True,
+                        }
+                    ],
+                },
+            },
+            "screenshots": [
+                {
+                    "displayType": "APP_IPHONE_67",
+                    "files": ["generated-screenshots/en-US/APP_IPHONE_67/01-plan.png"],
+                }
+            ],
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"] if issue["severity"] == "error"}
+        self.assertFalse(result["ok"])
+        self.assertIn("crossPlatformRelease.screenshotSync.platforms", fields)
+        plan = cli.plan_submission(config)
+        screenshot_action = next(
+            action for action in plan["actions"] if action["resource"] == "iOS/macOS App Store screenshot freshness"
+        )
+        self.assertEqual(screenshot_action["action"], "UPLOAD_REQUIRED")
+
+    def test_cross_platform_screenshot_sync_accepts_fresh_ios_and_macos(self):
+        cli = load_cli()
+        config = {
+            "app": {"platform": "IOS", "primaryLocale": "en-US"},
+            "crossPlatformRelease": {
+                "applePlatforms": ["IOS", "MAC_OS"],
+                "descriptionConsistency": {
+                    "requireSameDescription": True,
+                    "platforms": [
+                        {"platform": "IOS", "locale": "en-US", "description": "Plan calm days."},
+                        {"platform": "MAC_OS", "locale": "en-US", "description": "Plan calm days."},
+                    ],
+                },
+                "screenshotSync": {
+                    "uiChangedSinceLastSubmission": True,
+                    "preserveScreenshotRules": True,
+                    "platforms": [
+                        {
+                            "platform": "IOS",
+                            "displayTypes": ["APP_IPHONE_67"],
+                            "updatedFromLatestUi": True,
+                            "uploadedToAppStoreConnect": True,
+                        },
+                        {
+                            "platform": "MAC_OS",
+                            "displayTypes": ["APP_DESKTOP"],
+                            "updatedFromLatestUi": True,
+                            "uploadedToAppStoreConnect": True,
+                        },
+                    ],
+                },
+            },
+            "screenshots": [
+                {
+                    "displayType": "APP_IPHONE_67",
+                    "files": ["generated-screenshots/en-US/APP_IPHONE_67/01-plan.png"],
+                },
+                {
+                    "displayType": "APP_DESKTOP",
+                    "files": ["generated-screenshots/en-US/APP_DESKTOP/01-plan.png"],
+                },
+            ],
+        }
+        result = cli.validate_submission_config(config)
+        self.assertTrue(result["ok"])
+        self.assertFalse(any(issue["severity"] == "error" for issue in result["issues"]))
+
     def test_verify_selected_build_rejects_missing_encryption_compliance(self):
         cli = load_cli()
         args = type(

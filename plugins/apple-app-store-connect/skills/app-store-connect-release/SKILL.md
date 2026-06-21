@@ -433,6 +433,8 @@ When the user wants an iOS app and a native macOS app to stay independent but ex
 - Keep shared app logic, product IDs, entitlement identifiers, paywall copy, pricing, restore behavior, and App Review subscription evidence in a shared code/config layer where the app architecture allows it. Let Mac differ in desktop interaction details such as windows, sidebars, keyboard shortcuts, toolbar controls, and `APP_DESKTOP` screenshots.
 - Record the decision in `crossPlatformRelease`: source/target platforms, `distributionModel`, whether the app uses the shared Apple app record, whether subscription product IDs are shared or mapped, and source links reviewed on the release date.
 - When the user wants iOS and macOS app updates to stay aligned, record `crossPlatformRelease.versionConsistency.platforms` with each platform's `versionString` and `buildNumber`, and set `requireSameVersionString` or `requireSameBuildNumber` before upload.
+- For same-version iOS and macOS updates, keep the App Store description aligned across both platforms. Record or read back `crossPlatformRelease.descriptionConsistency.platforms` for each locale, and treat mismatched descriptions as a blocker before saying both platforms are ready.
+- If UI changed, refresh screenshots for both platform pages before readiness: iPhone/iPad display targets for iOS and `APP_DESKTOP` for macOS. Keep the existing screenshot rules: use current real UI captures, composed readable store screenshots, clear paid/Pro labels where relevant, no price/free/trial/no-payment overlay wording, and no stale screenshots from an older UI.
 
 For RevenueCat with iOS + macOS:
 
@@ -451,9 +453,10 @@ Ready-for-submission sequence for a Mac platform version:
 3. Verify the exported `.pkg` with `verify-build-assets --expect-platform MAC_OS`, then upload it with `upload-build-api --platform MAC_OS` after dry run and explicit confirmation.
 4. Wait for the build to process and become selectable.
 5. Create or patch the `MAC_OS` App Store version, select the processed Mac build, and apply Mac-specific review notes.
-6. Upload `APP_DESKTOP` screenshots.
-7. Verify free download pricing, shared subscription pricing/trials, RevenueCat entitlement/offering/package mapping, and subscription review screenshots.
-8. Stop before review submission unless the user explicitly confirms submitting the Mac version for review.
+6. Verify matching iOS/macOS App Store descriptions for every locale included in the same-version release.
+7. Upload refreshed `APP_DESKTOP` screenshots, and when the iOS UI changed too, upload refreshed iOS screenshots in the matching screenshot style.
+8. Verify free download pricing, shared subscription pricing/trials, RevenueCat entitlement/offering/package mapping, and subscription review screenshots.
+9. Stop before review submission unless the user explicitly confirms submitting the Mac version for review.
 
 ## Applying Metadata
 

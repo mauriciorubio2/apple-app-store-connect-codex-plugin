@@ -96,6 +96,46 @@
         }
       ]
     },
+    "descriptionConsistency": {
+      "requireSameDescription": true,
+      "platforms": [
+        {
+          "platform": "IOS",
+          "locale": "en-US",
+          "versionLocalizationId": "ios-version-localization-id",
+          "description": "Example Product helps you plan focused days with clear priorities, smart reminders, and calm progress tracking."
+        },
+        {
+          "platform": "MAC_OS",
+          "locale": "en-US",
+          "versionLocalizationId": "macos-version-localization-id",
+          "description": "Example Product helps you plan focused days with clear priorities, smart reminders, and calm progress tracking."
+        }
+      ]
+    },
+    "screenshotSync": {
+      "uiChangedSinceLastSubmission": false,
+      "requiresFreshScreenshotsWhenUiChanged": true,
+      "preserveScreenshotRules": true,
+      "platforms": [
+        {
+          "platform": "IOS",
+          "displayTypes": [
+            "APP_IPHONE_67"
+          ],
+          "updatedFromLatestUi": true,
+          "uploadedToAppStoreConnect": true
+        },
+        {
+          "platform": "MAC_OS",
+          "displayTypes": [
+            "APP_DESKTOP"
+          ],
+          "updatedFromLatestUi": true,
+          "uploadedToAppStoreConnect": true
+        }
+      ]
+    },
     "desktopOptimizationRequired": true,
     "experienceParityPolicy": "Keep pricing, paywall copy, entitlement behavior, restore purchases, and premium feature access consistent while allowing desktop-specific navigation, keyboard, window, and screenshot treatment.",
     "macOS": {
@@ -609,6 +649,16 @@
         "generated-screenshots/en-US/APP_IPHONE_67/01-plan.png",
         "generated-screenshots/en-US/APP_IPHONE_67/02-focus.png",
         "generated-screenshots/en-US/APP_IPHONE_67/03-pro.png"
+      ]
+    },
+    {
+      "localizationId": "macos-version-localization-id",
+      "displayType": "APP_DESKTOP",
+      "replaceExisting": false,
+      "files": [
+        "generated-screenshots/en-US/APP_DESKTOP/01-plan.png",
+        "generated-screenshots/en-US/APP_DESKTOP/02-focus.png",
+        "generated-screenshots/en-US/APP_DESKTOP/03-pro.png"
       ]
     }
   ],

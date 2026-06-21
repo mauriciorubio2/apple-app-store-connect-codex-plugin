@@ -3175,7 +3175,12 @@ def validate_platform_release_strategy(config: dict[str, Any], issues: list[dict
                 }
             )
 
-    allowed_display_types = PLATFORM_SCREENSHOT_DISPLAY_TYPES.get(platform)
+    cross_platform = config.get("crossPlatformRelease") or config.get("universalPurchase") or {}
+    screenshot_platforms = {platform}
+    screenshot_platforms.update(str(value).upper() for value in as_list(cross_platform.get("applePlatforms")) if value)
+    allowed_display_types: set[str] = set()
+    for screenshot_platform in screenshot_platforms:
+        allowed_display_types.update(PLATFORM_SCREENSHOT_DISPLAY_TYPES.get(screenshot_platform, set()))
     for index, group in enumerate(as_list(config.get("screenshots"))):
         display_type = group.get("displayType")
         if not display_type or not allowed_display_types:
@@ -3186,7 +3191,7 @@ def validate_platform_release_strategy(config: dict[str, Any], issues: list[dict
                     "severity": "warning",
                     "field": f"screenshots[{index}].displayType",
                     "message": (
-                        f"{platform} screenshot uploads normally use "
+                        f"{'/'.join(sorted(screenshot_platforms))} screenshot uploads normally use "
                         f"{', '.join(sorted(allowed_display_types))}; found {display_type}."
                     ),
                 }
@@ -3579,6 +3584,244 @@ def validate_cross_platform_version_consistency(config: dict[str, Any], issues: 
             )
 
 
+def normalize_description_for_compare(value: Any) -> str:
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    return re.sub(r"\s+", " ", text)
+
+
+def cross_platform_description_entries(config: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    app = config.get("app") or {}
+    primary_locale = str(app.get("primaryLocale") or "en-US")
+    cross_platform = config.get("crossPlatformRelease") or config.get("universalPurchase") or {}
+    consistency = cross_platform.get("descriptionConsistency") or config.get("descriptionConsistency") or {}
+    raw_entries: list[Any] = []
+    raw_entries.extend(as_list(consistency.get("platforms") or consistency.get("platformDescriptions")))
+    raw_entries.extend(as_list(cross_platform.get("platformDescriptions")))
+    for platform_version in as_list(cross_platform.get("platformVersions")):
+        if not isinstance(platform_version, dict):
+            continue
+        platform = platform_version.get("platform") or platform_version.get("applePlatform")
+        for loc in as_list(platform_version.get("versionLocalizations") or platform_version.get("localizations")):
+            if isinstance(loc, dict):
+                entry = dict(loc)
+                entry.setdefault("platform", platform)
+                raw_entries.append(entry)
+        if platform_version.get("description"):
+            raw_entries.append(
+                {
+                    "platform": platform,
+                    "locale": platform_version.get("locale") or primary_locale,
+                    "description": platform_version.get("description"),
+                    "versionId": platform_version.get("versionId") or platform_version.get("appStoreVersionId"),
+                }
+            )
+    for loc in as_list(config.get("versionLocalizations")):
+        if isinstance(loc, dict) and loc.get("platform"):
+            raw_entries.append(loc)
+
+    entries: list[dict[str, str]] = []
+    for entry in raw_entries:
+        if not isinstance(entry, dict):
+            continue
+        platform = str(entry.get("platform") or entry.get("applePlatform") or "").upper().strip()
+        locale = str(entry.get("locale") or primary_locale).strip()
+        description = str(entry.get("description") or entry.get("appStoreDescription") or "")
+        if platform or description:
+            entries.append(
+                {
+                    "platform": platform,
+                    "locale": locale,
+                    "description": description,
+                    "descriptionHash": hashlib.sha256(normalize_description_for_compare(description).encode("utf-8")).hexdigest()
+                    if description
+                    else "",
+                    "versionLocalizationId": str(
+                        entry.get("versionLocalizationId")
+                        or entry.get("localizationId")
+                        or entry.get("id")
+                        or ""
+                    ),
+                    "versionId": str(entry.get("versionId") or entry.get("appStoreVersionId") or ""),
+                }
+            )
+    return consistency, entries
+
+
+def cross_platform_targets_ios_and_macos(config: dict[str, Any]) -> bool:
+    cross_platform = config.get("crossPlatformRelease") or config.get("universalPurchase") or {}
+    platforms = {str(platform).upper() for platform in as_list(cross_platform.get("applePlatforms"))}
+    _, version_entries = cross_platform_version_entries(config)
+    platforms.update(entry.get("platform", "") for entry in version_entries)
+    _, description_entries = cross_platform_description_entries(config)
+    platforms.update(entry.get("platform", "") for entry in description_entries)
+    app_platform = str((config.get("app") or {}).get("platform") or "").upper()
+    if app_platform:
+        platforms.add(app_platform)
+    return "IOS" in platforms and "MAC_OS" in platforms
+
+
+def validate_cross_platform_description_consistency(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    consistency, entries = cross_platform_description_entries(config)
+    if not consistency and not entries and not cross_platform_targets_ios_and_macos(config):
+        return
+    require_same_description = consistency.get("requireSameDescription", True) is not False
+    if not entries:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "crossPlatformRelease.descriptionConsistency.platforms",
+                "message": "Record or fetch iOS and macOS App Store descriptions before declaring same-version platform metadata consistent.",
+            }
+        )
+        return
+
+    locales = sorted({entry.get("locale") or "en-US" for entry in entries})
+    for locale in locales:
+        locale_entries = [entry for entry in entries if (entry.get("locale") or "en-US") == locale]
+        platforms = {entry.get("platform") for entry in locale_entries if entry.get("platform")}
+        if not {"IOS", "MAC_OS"}.issubset(platforms):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "crossPlatformRelease.descriptionConsistency.platforms",
+                    "message": f"Record both iOS and macOS descriptions for locale {locale}.",
+                }
+            )
+        missing_descriptions = [entry for entry in locale_entries if not normalize_description_for_compare(entry.get("description"))]
+        if missing_descriptions:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "crossPlatformRelease.descriptionConsistency.platforms.description",
+                    "message": f"Every platform entry for locale {locale} should include the App Store description read from or written to App Store Connect.",
+                }
+            )
+        if require_same_description:
+            descriptions = {
+                normalize_description_for_compare(entry.get("description"))
+                for entry in locale_entries
+                if normalize_description_for_compare(entry.get("description"))
+            }
+            if len(descriptions) > 1:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "field": "crossPlatformRelease.descriptionConsistency.platforms.description",
+                        "message": f"iOS and macOS App Store descriptions must match for locale {locale} when both platform updates use the same version.",
+                    }
+                )
+
+
+def cross_platform_screenshot_sync_policy(config: dict[str, Any]) -> dict[str, Any]:
+    cross_platform = config.get("crossPlatformRelease") or config.get("universalPurchase") or {}
+    policy = cross_platform.get("screenshotSync") or config.get("screenshotSync") or {}
+    return policy if isinstance(policy, dict) else {}
+
+
+def screenshot_sync_ui_changed(policy: dict[str, Any]) -> bool:
+    return any(
+        policy.get(key) is True
+        for key in (
+            "uiChanged",
+            "uiChangedSinceLastSubmission",
+            "requiresScreenshotRefresh",
+            "screenshotsNeedRefresh",
+        )
+    )
+
+
+def display_types_from_screenshot_groups(config: dict[str, Any]) -> set[str]:
+    return {
+        str(group.get("displayType") or "").upper()
+        for group in as_list(config.get("screenshots"))
+        if isinstance(group, dict) and group.get("displayType")
+    }
+
+
+def platform_display_types_from_policy_entry(entry: dict[str, Any]) -> set[str]:
+    values = set()
+    for value in as_list(entry.get("displayTypes") or entry.get("displayType")):
+        if value:
+            values.add(str(value).upper())
+    return values
+
+
+def truthy_any(entry: dict[str, Any], keys: tuple[str, ...]) -> bool:
+    return any(entry.get(key) is True for key in keys)
+
+
+def validate_cross_platform_screenshot_sync(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    policy = cross_platform_screenshot_sync_policy(config)
+    if not policy and not cross_platform_targets_ios_and_macos(config):
+        return
+    if policy and policy.get("preserveScreenshotRules") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "crossPlatformRelease.screenshotSync.preserveScreenshotRules",
+                "message": "Cross-platform screenshot refreshes should preserve the plugin screenshot rules: latest UI captures, readable composed screenshots, Pro labels where needed, and no price/free/trial/no-payment wording.",
+            }
+        )
+    if not screenshot_sync_ui_changed(policy):
+        return
+
+    entries = [entry for entry in as_list(policy.get("platforms")) if isinstance(entry, dict)]
+    screenshot_display_types = display_types_from_screenshot_groups(config)
+    entry_by_platform = {
+        str(entry.get("platform") or entry.get("applePlatform") or "").upper(): entry
+        for entry in entries
+        if entry.get("platform") or entry.get("applePlatform")
+    }
+    expected = {
+        "IOS": PLATFORM_SCREENSHOT_DISPLAY_TYPES["IOS"],
+        "MAC_OS": PLATFORM_SCREENSHOT_DISPLAY_TYPES["MAC_OS"],
+    }
+    for platform, allowed_display_types in expected.items():
+        entry = entry_by_platform.get(platform)
+        if not entry:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": "crossPlatformRelease.screenshotSync.platforms",
+                    "message": f"UI changed for this same-version release; add {platform} screenshot refresh evidence before upload/submission.",
+                }
+            )
+            continue
+        display_types = platform_display_types_from_policy_entry(entry) or screenshot_display_types.intersection(allowed_display_types)
+        if not display_types:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"crossPlatformRelease.screenshotSync.platforms[{platform}].displayTypes",
+                    "message": f"UI changed; provide {platform} screenshot display types and files for upload.",
+                }
+            )
+        elif not (display_types.intersection(allowed_display_types) or screenshot_display_types.intersection(allowed_display_types)):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"crossPlatformRelease.screenshotSync.platforms[{platform}].displayTypes",
+                    "message": f"{platform} screenshot display types do not match App Store Connect expectations.",
+                }
+            )
+        if not truthy_any(entry, ("updatedFromLatestUi", "screenshotsUpdatedFromLatestUi", "generatedFromLatestUi")):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"crossPlatformRelease.screenshotSync.platforms[{platform}].updatedFromLatestUi",
+                    "message": f"UI changed; regenerate {platform} screenshots from the latest app UI before upload.",
+                }
+            )
+        if not truthy_any(entry, ("uploadedToAppStoreConnect", "uploaded", "appStoreConnectUpdated")):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"crossPlatformRelease.screenshotSync.platforms[{platform}].uploadedToAppStoreConnect",
+                    "message": f"UI changed; upload refreshed {platform} screenshots to App Store Connect before declaring readiness.",
+                }
+            )
+
+
 def validate_review_prompt_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
     policy = config.get("reviewPromptPolicy") or {}
     if not policy:
@@ -3778,7 +4021,6 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)
     validate_platform_release_strategy(config, issues)
-    validate_build_export_compliance_policy(config, issues)
     validate_cross_platform_revenuecat_strategy(config, issues)
     validate_cross_platform_version_consistency(config, issues)
     validate_onboarding_strategy(config, issues)
@@ -4444,8 +4686,11 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)
     validate_platform_release_strategy(config, issues)
+    validate_build_export_compliance_policy(config, issues)
     validate_cross_platform_revenuecat_strategy(config, issues)
     validate_cross_platform_version_consistency(config, issues)
+    validate_cross_platform_description_consistency(config, issues)
+    validate_cross_platform_screenshot_sync(config, issues)
     validate_onboarding_strategy(config, issues)
     validate_free_pro_access_model(config, issues)
     validate_review_prompt_policy(config, issues)
@@ -4556,6 +4801,38 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "requireSameVersionString": version_consistency.get("requireSameVersionString", True),
                 "requireSameBuildNumber": version_consistency.get("requireSameBuildNumber", False),
                 "platforms": version_entries,
+            }
+        )
+    description_consistency, description_entries = cross_platform_description_entries(config)
+    if description_consistency or description_entries or cross_platform_targets_ios_and_macos(config):
+        actions.append(
+            {
+                "action": "VERIFY",
+                "resource": "iOS/macOS App Store description consistency",
+                "requireSameDescription": description_consistency.get("requireSameDescription", True),
+                "locales": sorted({entry.get("locale") or "en-US" for entry in description_entries}),
+                "platforms": [
+                    {
+                        "platform": entry.get("platform"),
+                        "locale": entry.get("locale"),
+                        "versionLocalizationId": entry.get("versionLocalizationId"),
+                        "descriptionHash": entry.get("descriptionHash"),
+                    }
+                    for entry in description_entries
+                ],
+            }
+        )
+    screenshot_policy = cross_platform_screenshot_sync_policy(config)
+    if screenshot_policy or cross_platform_targets_ios_and_macos(config):
+        actions.append(
+            {
+                "action": "VERIFY" if not screenshot_sync_ui_changed(screenshot_policy) else "UPLOAD_REQUIRED",
+                "resource": "iOS/macOS App Store screenshot freshness",
+                "uiChangedSinceLastSubmission": screenshot_sync_ui_changed(screenshot_policy),
+                "preserveScreenshotRules": screenshot_policy.get("preserveScreenshotRules"),
+                "platforms": as_list(screenshot_policy.get("platforms")),
+                "displayTypesInConfig": sorted(display_types_from_screenshot_groups(config)),
+                "tool": "upload-screenshots",
             }
         )
     app_info = config.get("appInfo", {})
