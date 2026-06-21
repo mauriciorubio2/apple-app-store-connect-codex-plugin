@@ -392,7 +392,7 @@
     },
     {
       "field": "Some export compliance documentation",
-      "reason": "Builds can surface encryption and export compliance requirements; some account-specific documentation or certificates may require manual upload or review."
+      "reason": "The plugin can set build encryption compliance to usesNonExemptEncryption=false for the App Encryption Documentation option 'None of the algorithms mentioned above'. Account-specific export documents, certificates, or regulated encryption claims may still require manual review."
     },
     {
       "field": "Legal, medical, financial, kids, gambling, and regulated claims",

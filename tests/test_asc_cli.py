@@ -79,9 +79,10 @@ class SubscriptionStatusClient:
 
 
 class SelectedBuildClient:
-    def __init__(self, *, selected_build="42", processing_state="VALID"):
+    def __init__(self, *, selected_build="42", processing_state="VALID", uses_non_exempt_encryption=False):
         self.selected_build = selected_build
         self.processing_state = processing_state
+        self.uses_non_exempt_encryption = uses_non_exempt_encryption
 
     def get(self, path, query=None):
         if path == "/v1/apps/1234567890/appStoreVersions":
@@ -102,11 +103,48 @@ class SelectedBuildClient:
                             "version": self.selected_build,
                             "processingState": self.processing_state,
                             "uploadedDate": "2026-06-06T00:00:00-07:00",
+                            "usesNonExemptEncryption": self.uses_non_exempt_encryption,
                         },
                     }
                 ],
             }
+        if path == "/v1/builds/build-1":
+            return {
+                "data": {
+                    "id": "build-1",
+                    "type": "builds",
+                    "attributes": {
+                        "version": self.selected_build,
+                        "processingState": self.processing_state,
+                        "uploadedDate": "2026-06-06T00:00:00-07:00",
+                        "usesNonExemptEncryption": self.uses_non_exempt_encryption,
+                    },
+                }
+            }
         raise AssertionError(f"Unexpected path: {path}")
+
+
+class BuildComplianceClient:
+    def __init__(self, uses_non_exempt_encryption=None):
+        self.uses_non_exempt_encryption = uses_non_exempt_encryption
+        self.patch_calls = []
+
+    def get(self, path, query=None):
+        if path == "/v1/builds/build-1":
+            attrs = {
+                "version": "42",
+                "processingState": "VALID",
+                "uploadedDate": "2026-06-06T00:00:00-07:00",
+            }
+            if self.uses_non_exempt_encryption is not None:
+                attrs["usesNonExemptEncryption"] = self.uses_non_exempt_encryption
+            return {"data": {"id": "build-1", "type": "builds", "attributes": attrs}}
+        raise AssertionError(f"Unexpected path: {path}")
+
+    def patch(self, path, body):
+        self.patch_calls.append((path, body))
+        self.uses_non_exempt_encryption = body["data"]["attributes"]["usesNonExemptEncryption"]
+        return self.get(path)
 
 
 class AscCliValidationTests(unittest.TestCase):
@@ -786,6 +824,7 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["versionString"], "1.0.0")
         self.assertEqual(result["selectedBuildNumber"], "42")
+        self.assertTrue(result["encryptionCompliance"]["ok"])
 
     def test_verify_selected_build_rejects_stale_selected_build(self):
         cli = load_cli()
@@ -852,6 +891,58 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertTrue(
             any(action["resource"] == "iOS/macOS App Store version consistency" for action in plan["actions"])
         )
+
+    def test_verify_selected_build_rejects_missing_encryption_compliance(self):
+        cli = load_cli()
+        args = type(
+            "Args",
+            (),
+            {
+                "app_id": "1234567890",
+                "platform": "IOS",
+                "version_string": "1.0.0",
+                "build_number": "42",
+                "artifact": None,
+                "expect_bundle_id": None,
+                "expect_platform": None,
+            },
+        )()
+        result = cli.verify_selected_build(args, SelectedBuildClient(uses_non_exempt_encryption=True))
+        self.assertFalse(result["ok"])
+        self.assertIn("build.usesNonExemptEncryption", {issue["field"] for issue in result["issues"]})
+
+    def test_configure_build_compliance_sets_none_of_the_algorithms(self):
+        cli = load_cli()
+        client = BuildComplianceClient(uses_non_exempt_encryption=True)
+        result = cli.configure_build_compliance("build-1", client, yes=True)
+        self.assertEqual(result["action"], "PATCH")
+        self.assertEqual(result["after"]["usesNonExemptEncryption"], False)
+        self.assertEqual(client.patch_calls[0][0], "/v1/builds/build-1")
+        self.assertFalse(client.patch_calls[0][1]["data"]["attributes"]["usesNonExemptEncryption"])
+
+    def test_revenuecat_paywall_mapping_warns_when_products_missing(self):
+        cli = load_cli()
+        config = {
+            "subscriptions": [
+                {
+                    "id": "sub-weekly",
+                    "productId": "com.example.product.pro.weekly",
+                    "reviewScreenshot": "screenshots/review/pro-paywall.png",
+                    "paidFeatureScreenshot": True,
+                }
+            ],
+            "revenueCatIntegration": {
+                "enabled": True,
+                "requiresAuthenticatedMcp": True,
+                "projectId": "proj-example",
+                "entitlementIdentifier": "pro",
+                "offeringIdentifier": "default",
+            },
+        }
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"]}
+        self.assertIn("revenueCatIntegration.products", fields)
+        self.assertIn("revenueCatIntegration.apps", fields)
 
     def test_ip_review_warns_when_independent_app_disclaimers_are_missing(self):
         cli = load_cli()

@@ -40,13 +40,13 @@
       "platforms": [
         {
           "platform": "IOS",
-          "versionString": "",
-          "buildNumber": ""
+          "versionString": "1.0.0",
+          "buildNumber": "42"
         },
         {
           "platform": "MAC_OS",
-          "versionString": "",
-          "buildNumber": ""
+          "versionString": "1.0.0",
+          "buildNumber": "42"
         }
       ]
     },
@@ -68,6 +68,11 @@
     ],
     "lastReviewedOn": "2026-06-05"
   },
+  "exportCompliance": {
+    "usesNonExemptEncryption": false,
+    "appEncryptionDocumentation": "None of the algorithms mentioned above",
+    "applyAfterBuildUpload": true
+  },
   "revenueCatIntegration": {
     "enabled": true,
     "projectId": "revenuecat-project-id",
@@ -88,6 +93,33 @@
       "$rc_monthly",
       "$rc_annual"
     ],
+    "products": [
+      {
+        "productId": "com.example.app.pro.weekly",
+        "revenueCatProductId": "com.example.app.pro.weekly",
+        "packageIdentifier": "$rc_weekly",
+        "entitlementIdentifier": "pro"
+      },
+      {
+        "productId": "com.example.app.pro.monthly",
+        "revenueCatProductId": "com.example.app.pro.monthly",
+        "packageIdentifier": "$rc_monthly",
+        "entitlementIdentifier": "pro"
+      },
+      {
+        "productId": "com.example.app.pro.yearly",
+        "revenueCatProductId": "com.example.app.pro.yearly",
+        "packageIdentifier": "$rc_annual",
+        "entitlementIdentifier": "pro"
+      }
+    ],
+    "offeringIsCurrent": true,
+    "paywall": {
+      "configured": true,
+      "offeringIdentifier": "default",
+      "restorePurchasesVisible": true,
+      "termsAndPrivacyVisible": true
+    },
     "requiresAuthenticatedMcp": true,
     "productsMirrorAppStoreConnectSubscriptions": true,
     "crossPlatform": {

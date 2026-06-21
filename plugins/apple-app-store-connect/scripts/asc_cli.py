@@ -91,6 +91,8 @@ DEFAULT_SUBSCRIPTION_TRIAL_DURATION = "TWO_WEEKS"
 DEFAULT_SUBSCRIPTION_TRIAL_DISPLAY = "14-day"
 DEFAULT_PAYWALL_TRIAL_CTA = "Start 14-day free trial"
 DEFAULT_PAYWALL_TRIAL_TAGLINE = "✓ No payment due now"
+DEFAULT_USES_NON_EXEMPT_ENCRYPTION = False
+DEFAULT_APP_ENCRYPTION_DOCUMENTATION = "None of the algorithms mentioned above"
 SUBSCRIPTION_OFFER_MODES = {"PAY_AS_YOU_GO", "PAY_UP_FRONT", "FREE_TRIAL"}
 SUBSCRIPTION_OFFER_DURATIONS = {
     "THREE_DAYS",
@@ -591,6 +593,152 @@ def selected_build_from_response(response: dict[str, Any], version_string: str) 
     return version, build
 
 
+def bool_from_cli(value: Any) -> bool:
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "y"}:
+        return True
+    if normalized in {"0", "false", "no", "n"}:
+        return False
+    raise AppStoreConnectError(f"Expected a boolean true/false value, got: {value}")
+
+
+def build_from_upload_response(response: dict[str, Any]) -> dict[str, Any] | None:
+    data = response.get("data") or {}
+    build_ref = (((data.get("relationships") or {}).get("build") or {}).get("data") or {})
+    build_id = build_ref.get("id")
+    included = response.get("included") or []
+    if build_id:
+        return next((item for item in included if item.get("type") == "builds" and item.get("id") == build_id), None)
+    return next((item for item in included if item.get("type") == "builds"), None)
+
+
+def read_build(client: AppStoreConnectClient, build_id: str) -> dict[str, Any]:
+    return client.get(
+        f"/v1/builds/{build_id}",
+        {"fields[builds]": "version,processingState,uploadedDate,usesNonExemptEncryption,expired"},
+    ).get("data") or {}
+
+
+def ensure_build_has_encryption_attribute(
+    build: dict[str, Any] | None,
+    client: AppStoreConnectClient,
+) -> dict[str, Any] | None:
+    if not build or not build.get("id"):
+        return build
+    attrs = build.get("attributes") or {}
+    if "usesNonExemptEncryption" in attrs:
+        return build
+    try:
+        return read_build(client, str(build["id"]))
+    except AppStoreConnectError:
+        return build
+
+
+def build_encryption_compliance_summary(build: dict[str, Any] | None) -> dict[str, Any]:
+    build_attrs = (build or {}).get("attributes") or {}
+    present = "usesNonExemptEncryption" in build_attrs
+    value = build_attrs.get("usesNonExemptEncryption") if present else None
+    return {
+        "ok": present and value is DEFAULT_USES_NON_EXEMPT_ENCRYPTION,
+        "buildId": (build or {}).get("id"),
+        "usesNonExemptEncryption": value,
+        "attributePresent": present,
+        "targetUsesNonExemptEncryption": DEFAULT_USES_NON_EXEMPT_ENCRYPTION,
+        "appEncryptionDocumentation": DEFAULT_APP_ENCRYPTION_DOCUMENTATION,
+    }
+
+
+def add_build_encryption_compliance_issues(
+    issues: list[dict[str, Any]],
+    build: dict[str, Any] | None,
+    field_prefix: str = "build",
+) -> None:
+    if not build:
+        return
+    summary = build_encryption_compliance_summary(build)
+    if summary["ok"]:
+        return
+    if not summary["attributePresent"]:
+        message = (
+            "Selected build is missing App Encryption Documentation. "
+            f"Run configure-build-compliance so App Store Connect records "
+            f'"{DEFAULT_APP_ENCRYPTION_DOCUMENTATION}".'
+        )
+    elif summary["usesNonExemptEncryption"] is True:
+        message = (
+            "Selected build is marked as using non-exempt encryption. "
+            f'The default release workflow expects "{DEFAULT_APP_ENCRYPTION_DOCUMENTATION}" '
+            "unless the app intentionally requires export compliance documentation."
+        )
+    else:
+        message = (
+            "Selected build encryption compliance is not confirmed. "
+            f"Set usesNonExemptEncryption to false before calling the release ready for submission."
+        )
+    issues.append(
+        {
+            "severity": "error",
+            "field": f"{field_prefix}.usesNonExemptEncryption",
+            "message": message,
+        }
+    )
+
+
+def configure_build_compliance(
+    build_id: str,
+    client: AppStoreConnectClient | None,
+    yes: bool,
+    uses_non_exempt_encryption: bool = DEFAULT_USES_NON_EXEMPT_ENCRYPTION,
+) -> dict[str, Any]:
+    target = {
+        "usesNonExemptEncryption": uses_non_exempt_encryption,
+        "appEncryptionDocumentation": DEFAULT_APP_ENCRYPTION_DOCUMENTATION
+        if uses_non_exempt_encryption is DEFAULT_USES_NON_EXEMPT_ENCRYPTION
+        else "Non-exempt encryption documentation required",
+    }
+    if not yes:
+        return {
+            "dryRun": True,
+            "buildId": build_id,
+            "target": target,
+            "operation": f"PATCH /v1/builds/{build_id}",
+        }
+    if client is None:
+        raise AppStoreConnectError("An App Store Connect client is required when configuring build compliance.")
+    before = read_build(client, build_id)
+    before_summary = build_encryption_compliance_summary(before)
+    if before_summary.get("usesNonExemptEncryption") is uses_non_exempt_encryption:
+        return {
+            "dryRun": False,
+            "buildId": build_id,
+            "target": target,
+            "action": "NO_OP",
+            "before": before_summary,
+            "after": before_summary,
+        }
+    response = client.patch(
+        f"/v1/builds/{build_id}",
+        json_api_body(
+            "builds",
+            {"usesNonExemptEncryption": uses_non_exempt_encryption},
+            resource_id=build_id,
+        ),
+    )
+    patched = response.get("data") or {}
+    if "usesNonExemptEncryption" not in ((patched.get("attributes") or {}) if patched else {}):
+        patched = read_build(client, build_id)
+    after_summary = build_encryption_compliance_summary(patched)
+    return {
+        "dryRun": False,
+        "buildId": build_id,
+        "target": target,
+        "action": "PATCH",
+        "before": before_summary,
+        "after": after_summary,
+        "response": response,
+    }
+
+
 def verify_selected_build(args: argparse.Namespace, client: AppStoreConnectClient) -> dict[str, Any]:
     platform = str(args.platform or "IOS").upper()
     expected_platform = args.expect_platform or default_expected_platform_for_upload(platform)
@@ -653,6 +801,8 @@ def verify_selected_build(args: argparse.Namespace, client: AppStoreConnectClien
                     "message": f"Version {version_string} does not have a selected build in App Store Connect.",
                 }
             )
+        else:
+            build = ensure_build_has_encryption_attribute(build, client)
 
     build_attrs = (build or {}).get("attributes") or {}
     selected_build_number = str(build_attrs.get("version") or "") or None
@@ -673,8 +823,10 @@ def verify_selected_build(args: argparse.Namespace, client: AppStoreConnectClien
                 "message": f"Selected build processingState is {selected_processing_state or 'missing'}, expected VALID.",
             }
         )
+    add_build_encryption_compliance_issues(issues, build)
 
     errors = [issue for issue in issues if issue["severity"] == "error"]
+    encryption_compliance = build_encryption_compliance_summary(build)
     return {
         "ok": not errors,
         "appId": args.app_id,
@@ -686,6 +838,7 @@ def verify_selected_build(args: argparse.Namespace, client: AppStoreConnectClien
         "selectedBuildNumber": selected_build_number,
         "selectedProcessingState": selected_processing_state,
         "selectedBuildUploadedDate": build_attrs.get("uploadedDate"),
+        "encryptionCompliance": encryption_compliance,
         "artifactCheck": artifact_check,
         "errorCount": len(errors),
         "issues": issues,
@@ -2821,10 +2974,34 @@ def validate_access_preflight_policy(config: dict[str, Any], issues: list[dict[s
         )
 
 
+def revenuecat_product_entries(revenuecat: dict[str, Any]) -> list[dict[str, Any]]:
+    for key in ("products", "productMappings", "packageProductMapping"):
+        entries = [entry for entry in as_list(revenuecat.get(key)) if isinstance(entry, dict)]
+        if entries:
+            return entries
+    return []
+
+
+def revenuecat_product_id(entry: dict[str, Any]) -> str | None:
+    for key in ("productId", "appStoreProductId", "storeProductId", "revenueCatProductId"):
+        if entry.get(key):
+            return str(entry[key])
+    return None
+
+
+def revenuecat_package_identifier(entry: dict[str, Any]) -> str | None:
+    for key in ("packageIdentifier", "packageId", "package"):
+        if entry.get(key):
+            return str(entry[key])
+    return None
+
+
 def validate_revenuecat_integration(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
     revenuecat = config.get("revenueCatIntegration") or {}
     if not revenuecat or revenuecat.get("enabled") is False:
         return
+    subscriptions = as_list(config.get("subscriptions"))
+    has_subscription_strategy = bool(subscriptions or config.get("subscriptionPricing"))
     if revenuecat.get("requiresAuthenticatedMcp") is not True:
         issues.append(
             {
@@ -2857,6 +3034,114 @@ def validate_revenuecat_integration(config: dict[str, Any], issues: list[dict[st
                 "message": "Define the RevenueCat offering identifier, usually default, before configuring packages.",
             }
         )
+    if has_subscription_strategy and revenuecat.get("productsMirrorAppStoreConnectSubscriptions") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.productsMirrorAppStoreConnectSubscriptions",
+                "message": "RevenueCat products should mirror the App Store Connect subscription product IDs so RevenueCat and App Store Connect stats line up.",
+            }
+        )
+    app_entries = [entry for entry in as_list(revenuecat.get("apps")) if isinstance(entry, dict)]
+    if has_subscription_strategy and not app_entries:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.apps",
+                "message": "Record the RevenueCat app ID or public SDK key for the Apple build before configuring the paywall.",
+            }
+        )
+    for index, entry in enumerate(app_entries):
+        field = f"revenueCatIntegration.apps[{index}]"
+        if not entry.get("bundleId"):
+            issues.append({"severity": "warning", "field": field + ".bundleId", "message": "Record the bundle ID linked to this RevenueCat app."})
+        if not (entry.get("appId") or entry.get("publicApiKey")):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field,
+                    "message": "Record the RevenueCat app ID or public SDK key used by the build; never place a secret API key in the app.",
+                }
+            )
+        if entry.get("secretApiKey") or entry.get("privateApiKey"):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": field,
+                    "message": "Do not store RevenueCat secret/private API keys in app-facing release config.",
+                }
+            )
+    if has_subscription_strategy and not (
+        revenuecat.get("offeringIsCurrent") is True
+        or revenuecat.get("currentOfferingVerified") is True
+        or (revenuecat.get("offering") or {}).get("current") is True
+    ):
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.offeringIsCurrent",
+                "message": "Verify the RevenueCat offering is current and attached to the packages used by the paywall.",
+            }
+        )
+    rc_products = revenuecat_product_entries(revenuecat)
+    app_store_product_ids = subscription_product_identifiers(config)
+    if has_subscription_strategy and not rc_products:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "revenueCatIntegration.products",
+                "message": "Map every App Store Connect subscription product to a RevenueCat product, package, and entitlement before release.",
+            }
+        )
+    mapped_product_ids = {product_id for product_id in (revenuecat_product_id(entry) for entry in rc_products) if product_id}
+    if app_store_product_ids and rc_products:
+        missing = sorted(app_store_product_ids - mapped_product_ids)
+        if missing:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "revenueCatIntegration.products",
+                    "message": "RevenueCat product mapping is missing App Store products: " + ", ".join(missing),
+                }
+            )
+    configured_packages = {str(package) for package in as_list(revenuecat.get("packages")) if str(package).strip()}
+    for index, entry in enumerate(rc_products):
+        field = f"revenueCatIntegration.products[{index}]"
+        if not revenuecat_product_id(entry):
+            issues.append({"severity": "warning", "field": field + ".productId", "message": "Record the App Store / RevenueCat product identifier."})
+        package_id = revenuecat_package_identifier(entry)
+        if not package_id:
+            issues.append({"severity": "warning", "field": field + ".packageIdentifier", "message": "Attach the RevenueCat product to a paywall package such as $rc_weekly, $rc_monthly, or $rc_annual."})
+        elif configured_packages and package_id not in configured_packages:
+            issues.append({"severity": "warning", "field": field + ".packageIdentifier", "message": f"Package {package_id} is not listed in revenueCatIntegration.packages."})
+        if not (entry.get("entitlementIdentifier") or entry.get("entitlement") or revenuecat.get("entitlementIdentifier")):
+            issues.append({"severity": "warning", "field": field + ".entitlementIdentifier", "message": "Attach each RevenueCat product/package to the Pro entitlement."})
+    paywall = revenuecat.get("paywall") or {}
+    if has_subscription_strategy and paywall.get("enabled", True) is not False:
+        if not (paywall.get("configured") is True or paywall.get("id") or paywall.get("paywallId")):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "revenueCatIntegration.paywall.configured",
+                    "message": "Record that the RevenueCat-backed paywall is configured and points at the current offering/packages.",
+                }
+            )
+        if paywall and paywall.get("restorePurchasesVisible") is not True:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "revenueCatIntegration.paywall.restorePurchasesVisible",
+                    "message": "Keep Restore Purchases visible wherever the RevenueCat-backed paywall appears.",
+                }
+            )
+        if paywall and paywall.get("termsAndPrivacyVisible") is not True:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "field": "revenueCatIntegration.paywall.termsAndPrivacyVisible",
+                    "message": "Keep terms and privacy links visible on the RevenueCat-backed paywall.",
+                }
+            )
 
 
 def subscription_product_identifiers(config: dict[str, Any]) -> set[str]:
@@ -2906,6 +3191,48 @@ def validate_platform_release_strategy(config: dict[str, Any], issues: list[dict
                     ),
                 }
             )
+
+
+def build_export_compliance_policy(config: dict[str, Any]) -> dict[str, Any]:
+    build = config.get("build") or {}
+    policy = dict(build.get("exportCompliance") or {})
+    policy.update(config.get("exportCompliance") or {})
+    return policy
+
+
+def validate_build_export_compliance_policy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    build = config.get("build") or {}
+    version = config.get("version") or {}
+    policy = build_export_compliance_policy(config)
+    has_release_build_context = bool(
+        policy
+        or build.get("buildNumber")
+        or build.get("packagePath")
+        or build.get("file")
+        or build.get("path")
+        or version.get("buildId")
+    )
+    if not has_release_build_context:
+        return
+    if policy.get("usesNonExemptEncryption") is not DEFAULT_USES_NON_EXEMPT_ENCRYPTION:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "exportCompliance.usesNonExemptEncryption",
+                "message": (
+                    f'Before submission, set App Encryption Documentation to "{DEFAULT_APP_ENCRYPTION_DOCUMENTATION}" '
+                    "by configuring the selected build with usesNonExemptEncryption=false."
+                ),
+            }
+        )
+    if policy.get("applyAfterBuildUpload") is not True:
+        issues.append(
+            {
+                "severity": "warning",
+                "field": "exportCompliance.applyAfterBuildUpload",
+                "message": "Run configure-build-compliance after every new build upload before marking the release ready.",
+            }
+        )
 
 
 def validate_cross_platform_revenuecat_strategy(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
@@ -3451,6 +3778,7 @@ def plan_growth_strategy(config: dict[str, Any]) -> dict[str, Any]:
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)
     validate_platform_release_strategy(config, issues)
+    validate_build_export_compliance_policy(config, issues)
     validate_cross_platform_revenuecat_strategy(config, issues)
     validate_cross_platform_version_consistency(config, issues)
     validate_onboarding_strategy(config, issues)
@@ -4290,6 +4618,22 @@ def plan_submission(config: dict[str, Any]) -> dict[str, Any]:
                 "buildId": version.get("buildId"),
             }
         )
+    build_policy = build_export_compliance_policy(config)
+    if version.get("buildId") or build_policy:
+        actions.append(
+            {
+                "action": "PATCH" if version.get("buildId") else "VERIFY_AFTER_UPLOAD",
+                "resource": "builds",
+                "tool": "configure-build-compliance",
+                "buildId": version.get("buildId"),
+                "usesNonExemptEncryption": build_policy.get(
+                    "usesNonExemptEncryption",
+                    DEFAULT_USES_NON_EXEMPT_ENCRYPTION,
+                ),
+                "appEncryptionDocumentation": DEFAULT_APP_ENCRYPTION_DOCUMENTATION,
+                "requiredBeforeReady": True,
+            }
+        )
     for loc in as_list(config.get("versionLocalizations")):
         action = {
             "action": "PATCH" if loc.get("id") else "POST",
@@ -5038,6 +5382,11 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
             "platform": args.platform,
             "versionPlan": version_plan,
             "binaryAssetCheck": binary_asset_check,
+            "automaticBuildCompliance": {
+                "enabled": True,
+                "targetUsesNonExemptEncryption": DEFAULT_USES_NON_EXEMPT_ENCRYPTION,
+                "appEncryptionDocumentation": DEFAULT_APP_ENCRYPTION_DOCUMENTATION,
+            },
         }
     if not file_path.exists():
         raise AppStoreConnectError(f"Build file not found: {file_path}")
@@ -5102,11 +5451,33 @@ def upload_build_api(args: argparse.Namespace, client: AppStoreConnectClient | N
                 break
             time.sleep(20)
             final = client.get(f"/v1/buildUploads/{upload_id}", {"include": "build,buildUploadFiles"})
+    uploaded_build = build_from_upload_response(final)
+    compliance_result: dict[str, Any]
+    if uploaded_build and uploaded_build.get("id"):
+        compliance_result = configure_build_compliance(
+            str(uploaded_build["id"]),
+            client,
+            True,
+            uses_non_exempt_encryption=DEFAULT_USES_NON_EXEMPT_ENCRYPTION,
+        )
+    else:
+        compliance_result = {
+            "ok": False,
+            "action": "PENDING_BUILD_PROCESSING",
+            "message": (
+                "Build upload did not yet expose a build id. Poll until processing finishes, then run "
+                "configure-build-compliance with usesNonExemptEncryption=false before marking the release ready."
+            ),
+            "targetUsesNonExemptEncryption": DEFAULT_USES_NON_EXEMPT_ENCRYPTION,
+            "appEncryptionDocumentation": DEFAULT_APP_ENCRYPTION_DOCUMENTATION,
+        }
     return {
         "dryRun": False,
         "buildUploadId": upload_id,
         "buildUploadFileId": file_id,
         "binaryAssetCheck": binary_asset_check,
+        "uploadedBuildId": (uploaded_build or {}).get("id"),
+        "buildCompliance": compliance_result,
         "response": final,
     }
 
@@ -5578,6 +5949,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Expected bundle platform marker for the local artifact. Defaults from --platform.",
     )
 
+    compliance = sub.add_parser(
+        "configure-build-compliance",
+        help='Set App Encryption Documentation for a build; defaults to "None of the algorithms mentioned above".',
+    )
+    compliance.add_argument("--build-id", required=True)
+    compliance.add_argument(
+        "--uses-non-exempt-encryption",
+        default="false",
+        help='Boolean target. The default false maps to "None of the algorithms mentioned above".',
+    )
+    compliance.add_argument("--yes", action="store_true", help="Apply the build compliance setting.")
+
     apps = sub.add_parser("list-apps", help="List App Store Connect apps visible to the API key.")
     apps.add_argument("--bundle-id")
     apps.add_argument("--name")
@@ -5734,6 +6117,16 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "verify-selected-build":
             print_json(verify_selected_build(args, AppStoreConnectClient()))
+        elif args.command == "configure-build-compliance":
+            client = AppStoreConnectClient() if args.yes else None
+            print_json(
+                configure_build_compliance(
+                    args.build_id,
+                    client,
+                    args.yes,
+                    uses_non_exempt_encryption=bool_from_cli(args.uses_non_exempt_encryption),
+                )
+            )
         elif args.command == "list-apps":
             query = {}
             if args.bundle_id:

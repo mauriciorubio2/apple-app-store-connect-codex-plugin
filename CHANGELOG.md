@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.14.10] - 2026-06-22
+
+- Added build-compliance automation so processed uploads are patched with `usesNonExemptEncryption=false`, matching App Encryption Documentation option `None of the algorithms mentioned above`.
+- Updated selected-build verification to block release readiness when App Store Connect still reports missing or non-false build encryption compliance.
+- Tightened RevenueCat paywall readiness checks for app/public SDK keys, App Store product to RevenueCat package mapping, current offerings, and paywall restore/terms/privacy evidence.
+
 ## [1.14.9] - 2026-06-21
 
 - Added Info.plist privacy purpose-string checks to `verify-build-assets`, `upload-build-api`, and `upload-build-transporter`, including a HealthKit share/update pairing guard for `ITMS-90683: Missing purpose string`.

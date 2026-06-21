@@ -367,6 +367,16 @@ python3 plugins/apple-app-store-connect/scripts/asc_cli.py upload-build-api \
 
 `upload-build-api` and `upload-build-transporter` automatically run the iOS `.ipa` and macOS `.pkg` asset-catalog and purpose-string preflight unless `--skip-binary-asset-check` is deliberately supplied after a separate verification has already passed. If an app declares `NSHealthShareUsageDescription`, the preflight also expects `NSHealthUpdateUsageDescription` so HealthKit-enabled builds do not reach App Store processing with an incomplete purpose-string pair.
 
+`upload-build-api` also fixes the common App Store Connect `Missing Compliance` blocker when the processed build ID is available: it sets the build's `usesNonExemptEncryption` flag to `false`, which corresponds to App Encryption Documentation option `None of the algorithms mentioned above`. If a build was uploaded by Xcode, Transporter, or another path, run the same fix before calling the release ready:
+
+```bash
+python3 plugins/apple-app-store-connect/scripts/asc_cli.py configure-build-compliance \
+  --build-id build-id-after-processing \
+  --yes
+```
+
+`verify-selected-build` treats missing or non-false build encryption compliance as a blocker, alongside stale selected builds and non-`VALID` processing state.
+
 ## Versioning Behavior
 
 Apple separates the user-facing App Store version from the build iteration. `CFBundleShortVersionString` should match the App Store version and use three period-separated integers such as `1.2.3`. `CFBundleVersion` identifies the uploaded build and uses one to three period-separated integers.
@@ -377,7 +387,7 @@ The plugin can infer the next values from Xcode `MARKETING_VERSION`, `CURRENT_PR
 
 The bundled `subscription-onboarding-review-template.json` captures the release pattern used for event-driven subscription apps: free download, one subscription group, weekly/monthly/yearly Pro plans, RevenueCat project/offering/entitlement coordination, a 14-day free trial for eligible first-time subscribers, a flexible Free + Pro access model, value-first onboarding, visible restore/terms/privacy links on the paywall, and StoreKit review prompts only after successful user outcomes.
 
-Run access preflight first. `accessPreflight` requires a live App Store Connect probe plus a RevenueCat MCP `list_projects` probe before Codex applies metadata, pricing, products, offerings, screenshots, build uploads, or review submission changes. On failure, Codex should prompt for App Store Connect API-key setup or RevenueCat OAuth/API-key reauthorization, then retry the probe.
+Run access preflight first. `accessPreflight` requires a live App Store Connect probe plus a RevenueCat MCP `list_projects` probe before Codex applies metadata, pricing, products, offerings, screenshots, build uploads, or review submission changes. On failure, Codex should prompt for App Store Connect API-key setup or RevenueCat OAuth/API-key reauthorization, then retry the probe. RevenueCat release configs should also record the app/public SDK key, map every App Store subscription product to a RevenueCat product/package/entitlement, verify the offering is current, and confirm the RevenueCat-backed paywall has restore purchases plus terms/privacy links visible.
 
 By default, `freeProAccessModel` gives users a complete Free product experience with roughly 70-80% of useful functionality available before purchase. Pro should reserve the remaining high-intent 20-30%: unlimited usage, advanced alerts, widgets or live activities, deeper history/analytics, exports, premium personalization, themes, automations, premium external/provider actions, or other power-user depth. The core loop should stay usable on Free so users get a real taste of the app.
 

@@ -299,7 +299,7 @@ TOOLS = [
     },
     {
         "name": "asc_verify_selected_build",
-        "description": "Verify the App Store Connect version has the expected processed build selected, optionally tied to a local artifact that has Assets.car.",
+        "description": "Verify the App Store Connect version has the expected processed build selected, encryption compliance fixed, and optionally tied to a local artifact that has Assets.car.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -315,6 +315,19 @@ TOOLS = [
                 "expectPlatform": {"type": "string"},
             },
             "required": ["appId"],
+        },
+    },
+    {
+        "name": "asc_configure_build_compliance",
+        "description": "Set App Encryption Documentation for a build. Defaults to usesNonExemptEncryption=false, Apple's 'None of the algorithms mentioned above' option. Requires confirm=true.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "buildId": {"type": "string"},
+                "usesNonExemptEncryption": {"type": "boolean", "default": False},
+                "confirm": {"type": "boolean", "default": False},
+            },
+            "required": ["buildId"],
         },
     },
 ]
@@ -579,6 +592,19 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if arguments.get("expectPlatform"):
             command += ["--expect-platform", arguments["expectPlatform"]]
         text = run_command(command)
+    elif name == "asc_configure_build_compliance":
+        command = [
+            "python3",
+            str(CLI),
+            "configure-build-compliance",
+            "--build-id",
+            arguments["buildId"],
+            "--uses-non-exempt-encryption",
+            "true" if arguments.get("usesNonExemptEncryption") else "false",
+        ]
+        if arguments.get("confirm"):
+            command.append("--yes")
+        text = run_command(command)
     else:
         raise RuntimeError(f"Unknown tool: {name}")
     return {"content": [{"type": "text", "text": text}]}
@@ -592,7 +618,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             result = {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.8"},
+                "serverInfo": {"name": "apple-app-store-connect", "version": "1.14.10"},
             }
         elif method == "tools/list":
             result = {"tools": TOOLS}
