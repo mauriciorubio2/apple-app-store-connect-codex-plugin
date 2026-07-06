@@ -1539,7 +1539,15 @@ def build_all_territory_availability_body(app_id: str, territory_ids: list[str])
         "data": {
             "type": "appAvailabilities",
             "attributes": {"availableInNewTerritories": True},
-            "relationships": {"app": relationship("apps", app_id)},
+            "relationships": {
+                "app": relationship("apps", app_id),
+                "territoryAvailabilities": {
+                    "data": [
+                        {"type": "territoryAvailabilities", "id": f"${{availability-{territory_id}}}"}
+                        for territory_id in territory_ids
+                    ]
+                },
+            },
         },
         "included": [
             {
@@ -1663,8 +1671,9 @@ def configure_free_download(args: argparse.Namespace, client: AppStoreConnectCli
     )
     territory_ids = list_territory_ids(client)
     availability = set_all_territories_available(client, app_id, territory_ids)
+    availability_id = availability.get("availabilityId") or app_id
     verification = client.get(
-        f"/v2/appAvailabilities/{app_id}/territoryAvailabilities",
+        f"/v2/appAvailabilities/{availability_id}/territoryAvailabilities",
         {"limit": "200"},
     )
     unavailable = [
