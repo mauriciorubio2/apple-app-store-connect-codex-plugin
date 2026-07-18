@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.15.0] - 2026-07-18
+
+- Added explicit `socialMedia` and `socialMediaAgeRestricted` age-rating fields for Apple's July 2026 questionnaire update.
+- Added release validation that catches unanswered, null, non-Boolean, or inconsistent social-media age-rating responses before metadata application or review submission.
+- Updated the submission template, field map, release skill, and documentation for Apple's September 2026 submission requirement and current social-media definitions.
+
 ## [1.14.11] - 2026-06-22
 
 - Added iOS/macOS App Store description consistency checks so same-version platform releases verify matching localized descriptions before readiness.

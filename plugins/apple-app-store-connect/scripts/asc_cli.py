@@ -4311,6 +4311,73 @@ SUBSCRIPTION_STATUS_WARNING_STATES = {
 }
 
 
+def validate_social_media_age_rating(config: dict[str, Any], issues: list[dict[str, str]]) -> None:
+    age_rating = config.get("ageRating")
+    review_submission = config.get("reviewSubmission") or {}
+    if not age_rating:
+        issues.append(
+            {
+                "severity": (
+                    "error"
+                    if review_submission.get("createDraft") or review_submission.get("submitForReview")
+                    else "warning"
+                ),
+                "field": "ageRating",
+                "message": (
+                    "Add an ageRating declaration with explicit socialMedia and "
+                    "socialMediaAgeRestricted Boolean answers before submission."
+                ),
+            }
+        )
+        return
+
+    attributes = age_rating.get("attributes")
+    if not isinstance(attributes, dict):
+        issues.append(
+            {
+                "severity": "error",
+                "field": "ageRating.attributes",
+                "message": "Age rating attributes must be an object.",
+            }
+        )
+        return
+
+    fields = {
+        "socialMedia": "Social Media",
+        "socialMediaAgeRestricted": "Social Media Disabled for Users Under 13",
+    }
+    for field, label in fields.items():
+        value = attributes.get(field)
+        if field not in attributes or value is None:
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"ageRating.attributes.{field}",
+                    "message": f"Answer Apple's {label} age-rating question with true or false.",
+                }
+            )
+        elif not isinstance(value, bool):
+            issues.append(
+                {
+                    "severity": "error",
+                    "field": f"ageRating.attributes.{field}",
+                    "message": f"Apple's {label} age-rating answer must be a Boolean.",
+                }
+            )
+
+    if attributes.get("socialMedia") is False and attributes.get("socialMediaAgeRestricted") is True:
+        issues.append(
+            {
+                "severity": "error",
+                "field": "ageRating.attributes.socialMediaAgeRestricted",
+                "message": (
+                    "Social Media Disabled for Users Under 13 cannot be true when the app has no "
+                    "social media capability. Set both answers to false when the app has no social media."
+                ),
+            }
+        )
+
+
 def read_subscription_status(client: AppStoreConnectClient, subscription_id: str) -> dict[str, Any]:
     subscription_response = client.get(f"/v1/subscriptions/{subscription_id}")
     subscription_data = subscription_response.get("data") or {}
@@ -4691,6 +4758,7 @@ def validate_submission_config(config: dict[str, Any]) -> dict[str, Any]:
             )
 
     validate_subscription_pricing_strategy(config, issues)
+    validate_social_media_age_rating(config, issues)
     validate_subscription_availability_strategy(config, issues)
     validate_access_preflight_policy(config, issues)
     validate_revenuecat_integration(config, issues)

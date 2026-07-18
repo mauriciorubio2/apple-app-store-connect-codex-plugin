@@ -26,10 +26,25 @@ class AssetTests(unittest.TestCase):
 
     def test_manifest_has_release_metadata(self):
         manifest = json.loads((PLUGIN / ".codex-plugin/plugin.json").read_text())
-        self.assertEqual(manifest["version"], "1.14.11")
+        self.assertEqual(manifest["version"], "1.15.0")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["repository"], "https://github.com/mauriciorubio2/apple-app-store-connect-codex-plugin")
         self.assertIn("mcpServers", manifest)
+
+    def test_age_rating_assets_include_social_media_questions(self):
+        field_map = json.loads((PLUGIN / "assets/field-map.json").read_text())
+        age_rating = next(
+            item
+            for item in field_map["submissionFieldGroups"]
+            if item["resource"] == "ageRatingDeclarations"
+        )
+        self.assertIn("socialMedia", age_rating["automatableFields"])
+        self.assertIn("socialMediaAgeRestricted", age_rating["automatableFields"])
+
+        template = json.loads((PLUGIN / "assets/submission-template.json").read_text())
+        attributes = template["ageRating"]["attributes"]
+        self.assertIs(attributes["socialMedia"], False)
+        self.assertIs(attributes["socialMediaAgeRestricted"], False)
 
     def test_screenshot_recipe_defaults_to_large_device_and_cta_layout(self):
         recipe = json.loads((PLUGIN / "assets/screenshot-recipe.json").read_text())

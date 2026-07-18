@@ -1,9 +1,11 @@
 {
   "sourceAudit": {
     "openApiVersion": "4.3.1",
-    "auditedOn": "2026-06-01",
+    "auditedOn": "2026-07-18",
     "primarySources": [
       "https://developer.apple.com/documentation/appstoreconnectapi",
+      "https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/",
+      "https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating/",
       "https://developer.apple.com/help/app-store-connect/",
       "https://developer.apple.com/app-store/product-page/",
       "https://developer.apple.com/app-store/custom-product-pages/",
@@ -117,6 +119,8 @@
         "ageAssurance",
         "sexualContentGraphicAndNudity",
         "sexualContentOrNudity",
+        "socialMedia",
+        "socialMediaAgeRestricted",
         "horrorOrFearThemes",
         "matureOrSuggestiveThemes",
         "unrestrictedWebAccess",
@@ -124,7 +128,7 @@
         "violenceCartoonOrFantasy",
         "violenceRealistic"
       ],
-      "notes": "Values must honestly reflect app content. Do not lower a rating for marketing reasons."
+      "notes": "Values must honestly reflect app content. socialMedia covers redistribution, amplification, or interaction with user-generated content through feeds or discovery. socialMediaAgeRestricted corresponds to Social Media Disabled for Users Under 13. Both fields require explicit Boolean answers for submissions starting September 2026. Do not lower a rating for marketing reasons."
     },
     {
       "group": "Platform version",

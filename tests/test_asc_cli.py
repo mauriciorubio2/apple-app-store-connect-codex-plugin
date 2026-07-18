@@ -155,6 +155,90 @@ class AscCliValidationTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertGreaterEqual(result["warningCount"], 0)
 
+    def test_age_rating_requires_social_media_answers(self):
+        cli = load_cli()
+        config = {"ageRating": {"id": "age-rating-id", "attributes": {}}}
+        result = cli.validate_submission_config(config)
+        fields = {issue["field"] for issue in result["issues"] if issue["severity"] == "error"}
+        self.assertFalse(result["ok"])
+        self.assertIn("ageRating.attributes.socialMedia", fields)
+        self.assertIn("ageRating.attributes.socialMediaAgeRestricted", fields)
+
+    def test_age_rating_rejects_age_restriction_without_social_media(self):
+        cli = load_cli()
+        config = {
+            "ageRating": {
+                "id": "age-rating-id",
+                "attributes": {"socialMedia": False, "socialMediaAgeRestricted": True},
+            }
+        }
+        result = cli.validate_submission_config(config)
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any(
+                issue["field"] == "ageRating.attributes.socialMediaAgeRestricted"
+                and "cannot be true" in issue["message"]
+                for issue in result["issues"]
+            )
+        )
+
+    def test_age_rating_accepts_explicit_no_social_media_answers(self):
+        cli = load_cli()
+        config = {
+            "ageRating": {
+                "id": "age-rating-id",
+                "attributes": {"socialMedia": False, "socialMediaAgeRestricted": False},
+            }
+        }
+        result = cli.validate_submission_config(config)
+        social_issues = [issue for issue in result["issues"] if "socialMedia" in issue["field"]]
+        self.assertEqual(social_issues, [])
+
+    def test_age_rating_rejects_non_boolean_social_media_answers(self):
+        cli = load_cli()
+        config = {
+            "ageRating": {
+                "id": "age-rating-id",
+                "attributes": {"socialMedia": "NO", "socialMediaAgeRestricted": False},
+            }
+        }
+        result = cli.validate_submission_config(config)
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any(
+                issue["field"] == "ageRating.attributes.socialMedia"
+                and "must be a Boolean" in issue["message"]
+                for issue in result["issues"]
+            )
+        )
+
+    def test_review_submission_requires_age_rating_section(self):
+        cli = load_cli()
+        result = cli.validate_submission_config({"reviewSubmission": {"createDraft": True}})
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any(issue["field"] == "ageRating" and issue["severity"] == "error" for issue in result["issues"])
+        )
+
+    def test_apply_submission_sends_social_media_age_rating_answers(self):
+        cli = load_cli()
+        client = RecordingClient()
+        config = {
+            "ageRating": {
+                "id": "age-rating-id",
+                "attributes": {"socialMedia": False, "socialMediaAgeRestricted": False},
+            }
+        }
+        result = cli.apply_submission(config, client, yes=True)
+        self.assertFalse(result["dryRun"])
+        self.assertEqual(len(client.patch_calls), 1)
+        path, body = client.patch_calls[0]
+        self.assertEqual(path, "/v1/ageRatingDeclarations/age-rating-id")
+        self.assertEqual(
+            body["data"]["attributes"],
+            {"socialMedia": False, "socialMediaAgeRestricted": False},
+        )
+
     def test_keyword_length_error(self):
         cli = load_cli()
         config = {

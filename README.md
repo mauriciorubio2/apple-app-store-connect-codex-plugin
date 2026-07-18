@@ -36,6 +36,7 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 - Prepare native macOS platform versions with `MAC_OS`, `.pkg` artifacts, and `APP_DESKTOP` screenshots.
 - Validate iOS/macOS universal-purchase setup, shared Apple subscription products, and RevenueCat same-project entitlement/offering/package mapping so platform apps stay independent but user-facing pricing and access remain consistent.
 - Update App Store version metadata, version localizations, review contact/demo details, selected build relationship, and age rating declarations when resource IDs are supplied.
+- Require explicit `socialMedia` and `socialMediaAgeRestricted` age-rating answers so Apple's July 2026 questionnaire update is not missed before submission.
 - Warn when update/resubmission version localizations are missing or use flat `whatsNew` copy so App Store version history/changelog text is not forgotten, while allowing explicitly marked initial app or platform releases to omit unavailable What's New text.
 - Prepare subscription/IAP localization, review screenshot, and App Store description legal-link checklists.
 - Prepare IP-sensitive releases and resubmissions with a generic third-party IP checklist, optional `ipReview` validation warnings, no-affiliation disclaimer guidance, and new-binary reminders for asset changes.
@@ -46,6 +47,8 @@ codex plugin add apple-app-store-connect@apple-app-store-connect-codex-plugin
 The workflow is based on Apple's current App Store Connect API, App Store Connect Help, and product page guidance:
 
 - [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi)
+- [Age rating values and definitions](https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/)
+- [Set an app age rating](https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating/)
 - [Generating tokens for API requests](https://developer.apple.com/documentation/appstoreconnectapi/generating_tokens_for_api_requests)
 - [Managing assets with asset catalogs](https://developer.apple.com/documentation/xcode/managing-assets-with-asset-catalogs)
 - [Uploading assets to App Store Connect](https://developer.apple.com/documentation/appstoreconnectapi/uploading_assets_to_app_store_connect)

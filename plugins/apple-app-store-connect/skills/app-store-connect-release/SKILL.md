@@ -460,6 +460,13 @@ Ready-for-submission sequence for a Mac platform version:
 
 ## Applying Metadata
 
+Before applying metadata, answer both social-media age-rating fields explicitly in `ageRating.attributes`:
+
+- `socialMedia`: `true` when users can redistribute, amplify, or interact with user-generated content through a social feed or discovery mechanism; otherwise `false`.
+- `socialMediaAgeRestricted`: `true` only when the app has social media and users under 13 cannot access it. Apple's minimum expectation includes calling the Declared Age Range API and delivering only age-appropriate user-generated content. Set it to `false` when the app has no social media.
+
+Apple requires responses to these questions for submissions starting September 2026. Treat a missing, null, non-Boolean, or logically inconsistent answer as a release blocker. Inspect the app's actual feeds, profiles, posts, comments, reactions, reposting, search, sharing, and discovery behavior before selecting values.
+
 Dry run:
 
 ```bash

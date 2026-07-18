@@ -550,6 +550,8 @@
       "userGeneratedContent": false,
       "unrestrictedWebAccess": false,
       "messagingAndChat": false,
+      "socialMedia": false,
+      "socialMediaAgeRestricted": false,
       "healthOrWellnessTopics": false,
       "profanityOrCrudeHumor": "NONE",
       "matureOrSuggestiveThemes": "NONE",
